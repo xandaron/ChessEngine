@@ -7,35 +7,7 @@ public static class Program
     public static Game game = new Game();
     static void Main()
     {
-        Console.BackgroundColor = ConsoleColor.Red; Console.ForegroundColor = ConsoleColor.Gray;
-        //Pawns
-        for (int i = 0; i < 8; i++)
-        {
-            game.board.tiles[i, 1].piece = new Piece('P', 0, game.board.tiles[i, 1]);
-            game.board.tiles[i, 6].piece = new Piece('P', 1, game.board.tiles[i, 6]);
-        }
-
-        //White Pieces
-
-        game.board.tiles[0, 0].piece = new Piece('R', 0, game.board.tiles[0, 0]);
-        game.board.tiles[1, 0].piece = new Piece('N', 0, game.board.tiles[1, 0]);
-        game.board.tiles[2, 0].piece = new Piece('B', 0, game.board.tiles[2, 0]);
-        game.board.tiles[3, 0].piece = new Piece('Q', 0, game.board.tiles[3, 0]);
-        game.board.tiles[4, 0].piece = new Piece('K', 0, game.board.tiles[4, 0]);
-        game.board.tiles[5, 0].piece = new Piece('B', 0, game.board.tiles[5, 0]);
-        game.board.tiles[6, 0].piece = new Piece('N', 0, game.board.tiles[6, 0]);
-        game.board.tiles[7, 0].piece = new Piece('R', 0, game.board.tiles[7, 0]);
-
-        //Black Pieces
-        game.board.tiles[0, 7].piece = new Piece('R', 1, game.board.tiles[0, 7]);
-        game.board.tiles[1, 7].piece = new Piece('N', 1, game.board.tiles[1, 7]);
-        game.board.tiles[2, 7].piece = new Piece('B', 1, game.board.tiles[2, 7]);
-        game.board.tiles[3, 7].piece = new Piece('Q', 1, game.board.tiles[3, 7]);
-        game.board.tiles[4, 7].piece = new Piece('K', 1, game.board.tiles[4, 7]);
-        game.board.tiles[5, 7].piece = new Piece('B', 1, game.board.tiles[5, 7]);
-        game.board.tiles[6, 7].piece = new Piece('N', 1, game.board.tiles[6, 7]);
-        game.board.tiles[7, 7].piece = new Piece('R', 1, game.board.tiles[7, 7]);
-
+        Console.BackgroundColor = ConsoleColor.DarkBlue; Console.ForegroundColor = ConsoleColor.Gray;
         game.displayBoard();
     }
 }
@@ -43,6 +15,35 @@ public static class Program
 public class Game
 {
     public Board board = new Board();
+
+    public Game()
+    {
+        for (int i = 0; i < 8; i++)
+        {
+            board.tiles[i, 1].piece = new Piece('P', 0, board.tiles[i, 1]);
+            board.tiles[i, 6].piece = new Piece('P', 1, board.tiles[i, 6]);
+        }
+
+        //White Pieces
+        board.tiles[0, 0].piece = new Piece('R', 0, board.tiles[0, 0]);
+        board.tiles[1, 0].piece = new Piece('N', 0, board.tiles[1, 0]);
+        board.tiles[2, 0].piece = new Piece('B', 0, board.tiles[2, 0]);
+        board.tiles[3, 0].piece = new Piece('Q', 0, board.tiles[3, 0]);
+        board.tiles[4, 0].piece = new Piece('K', 0, board.tiles[4, 0]);
+        board.tiles[5, 0].piece = new Piece('B', 0, board.tiles[5, 0]);
+        board.tiles[6, 0].piece = new Piece('N', 0, board.tiles[6, 0]);
+        board.tiles[7, 0].piece = new Piece('R', 0, board.tiles[7, 0]);
+
+        //Black Pieces
+        board.tiles[0, 7].piece = new Piece('R', 1, board.tiles[0, 7]);
+        board.tiles[1, 7].piece = new Piece('N', 1, board.tiles[1, 7]);
+        board.tiles[2, 7].piece = new Piece('B', 1, board.tiles[2, 7]);
+        board.tiles[3, 7].piece = new Piece('Q', 1, board.tiles[3, 7]);
+        board.tiles[4, 7].piece = new Piece('K', 1, board.tiles[4, 7]);
+        board.tiles[5, 7].piece = new Piece('B', 1, board.tiles[5, 7]);
+        board.tiles[6, 7].piece = new Piece('N', 1, board.tiles[6, 7]);
+        board.tiles[7, 7].piece = new Piece('R', 1, board.tiles[7, 7]);
+    }
 
     public void displayBoard()
     {
@@ -154,6 +155,14 @@ public class Piece
     public List<Board.Tile> getMoves()
     {
         List<Board.Tile> ts = new List<Board.Tile>();
+        bool u = true;
+        bool d = true;
+        bool l = true;
+        bool r = true;
+        bool ul = true;
+        bool ur = true;
+        bool dl = true;
+        bool dr = true;
         switch (type)
         {
             case 'K':
@@ -173,13 +182,309 @@ public class Piece
                 }
                 break;
             case 'Q':
+                for (int i = 1; i < 8; i++)
+                {
+                    if (u && tile.x + i < 8)
+                    {
+                        if (Program.game.board.tiles[tile.x + i, tile.y].piece is null)
+                        {
+                            ts.Add(Program.game.board.tiles[tile.x + i, tile.y]);
+                        }
+                        else
+                        {
+                            u = false;
+                            if (Program.game.board.tiles[tile.x + i, tile.y].piece!.team != this.team)
+                            {
+                                ts.Add(Program.game.board.tiles[tile.x + i, tile.y]);
+                            }
+                        }
+                    }
+                    if (d && tile.x - i >= 0)
+                    {
+                        if (Program.game.board.tiles[tile.x - i, tile.y].piece is null)
+                        {
+                            ts.Add(Program.game.board.tiles[tile.x - i, tile.y]);
+                        }
+                        else
+                        {
+                            d = false;
+                            if (Program.game.board.tiles[tile.x - i, tile.y].piece!.team != this.team)
+                            {
+                                ts.Add(Program.game.board.tiles[tile.x - i, tile.y]);
+                            }
+                        }
+                    }
+                    if (l && tile.y - i >= 0)
+                    {
+                        if (Program.game.board.tiles[tile.x, tile.y - i].piece is null)
+                        {
+                            ts.Add(Program.game.board.tiles[tile.x, tile.y - i]);
+                        }
+                        else
+                        {
+                            l = false;
+                            if (Program.game.board.tiles[tile.x, tile.y - i].piece!.team != this.team)
+                            {
+                                ts.Add(Program.game.board.tiles[tile.x, tile.y - i]);
+                            }
+                        }
+                    }
+                    if (r && tile.y + i < 8)
+                    {
+                        if (Program.game.board.tiles[tile.x, tile.y + i].piece is null)
+                        {
+                            ts.Add(Program.game.board.tiles[tile.x, tile.y + i]);
+                        }
+                        else
+                        {
+                            r = false;
+                            if (Program.game.board.tiles[tile.x, tile.y + i].piece!.team != this.team)
+                            {
+                                ts.Add(Program.game.board.tiles[tile.x, tile.y + i]);
+                            }
+                        }
+                    }
+                    if (ul && tile.x + i < 8 && tile.y - i >= 0)
+                    {
+                        if (Program.game.board.tiles[tile.x + i, tile.y - i].piece is null)
+                        {
+                            ts.Add(Program.game.board.tiles[tile.x + i, tile.y - i]);
+                        }
+                        else
+                        {
+                            ul = false;
+                            if (Program.game.board.tiles[tile.x + i, tile.y - i].piece!.team != this.team)
+                            {
+                                ts.Add(Program.game.board.tiles[tile.x + i, tile.y - i]);
+                            }
+                        }
+                    }
+                    if (ur && tile.x + i < 8 && tile.y + i < 8)
+                    {
+                        if (Program.game.board.tiles[tile.x + i, tile.y + i].piece is null)
+                        {
+                            ts.Add(Program.game.board.tiles[tile.x + i, tile.y + i]);
+                        }
+                        else
+                        {
+                            ur = false;
+                            if (Program.game.board.tiles[tile.x + i, tile.y + i].piece!.team != this.team)
+                            {
+                                ts.Add(Program.game.board.tiles[tile.x + i, tile.y + i]);
+                            }
+                        }
+                    }
+                    if (dl && tile.x - i >= 0 && tile.y - i >= 0)
+                    {
+                        if (Program.game.board.tiles[tile.x - i, tile.y - i].piece is null)
+                        {
+                            ts.Add(Program.game.board.tiles[tile.x - i, tile.y - i]);
+                        }
+                        else
+                        {
+                            dl = false;
+                            if (Program.game.board.tiles[tile.x - i, tile.y - i].piece!.team != this.team)
+                            {
+                                ts.Add(Program.game.board.tiles[tile.x - i, tile.y - i]);
+                            }
+                        }
+                    }
+                    if (dr && tile.x - i >= 0 && tile.y + i < 8)
+                    {
+                        if (Program.game.board.tiles[tile.x - i, tile.y + i].piece is null)
+                        {
+                            ts.Add(Program.game.board.tiles[tile.x - i, tile.y + i]);
+                        }
+                        else
+                        {
+                            dr = false;
+                            if (Program.game.board.tiles[tile.x - i, tile.y + i].piece!.team != this.team)
+                            {
+                                ts.Add(Program.game.board.tiles[tile.x - i, tile.y + i]);
+                            }
+                        }
+                    }
+                }
                 break;
             case 'R':
+                for (int i = 1; i < 8; i++)
+                {
+                    if (u && tile.x + i < 8)
+                    {
+                        if (Program.game.board.tiles[tile.x + i, tile.y].piece is null)
+                        {
+                            ts.Add(Program.game.board.tiles[tile.x + i, tile.y]);
+                        }
+                        else
+                        {
+                            u = false;
+                            if (Program.game.board.tiles[tile.x + i, tile.y].piece!.team != this.team)
+                            {
+                                ts.Add(Program.game.board.tiles[tile.x + i, tile.y]);
+                            }
+                        }
+                    }
+                    if (d && tile.x - i >= 0)
+                    {
+                        if (Program.game.board.tiles[tile.x - i, tile.y].piece is null)
+                        {
+                            ts.Add(Program.game.board.tiles[tile.x - i, tile.y]);
+                        }
+                        else
+                        {
+                            d = false;
+                            if (Program.game.board.tiles[tile.x - i, tile.y].piece!.team != this.team)
+                            {
+                                ts.Add(Program.game.board.tiles[tile.x - i, tile.y]);
+                            }
+                        }
+                    }
+                    if (l && tile.y - i >= 0)
+                    {
+                        if (Program.game.board.tiles[tile.x, tile.y - i].piece is null)
+                        {
+                            ts.Add(Program.game.board.tiles[tile.x, tile.y - i]);
+                        }
+                        else
+                        {
+                            l = false;
+                            if (Program.game.board.tiles[tile.x, tile.y - i].piece!.team != this.team)
+                            {
+                                ts.Add(Program.game.board.tiles[tile.x, tile.y - i]);
+                            }
+                        }
+                    }
+                    if (r && tile.y + i < 8)
+                    {
+                        if (Program.game.board.tiles[tile.x, tile.y + i].piece is null)
+                        {
+                            ts.Add(Program.game.board.tiles[tile.x, tile.y + i]);
+                        }
+                        else
+                        {
+                            r = false;
+                            if (Program.game.board.tiles[tile.x, tile.y + i].piece!.team != this.team)
+                            {
+                                ts.Add(Program.game.board.tiles[tile.x, tile.y + i]);
+                            }
+                        }
+                    }
+                }
                 break;
             case 'B':
+                for(int i = 1; i < 8; i++)
+                {
+                    if (ul && tile.x + i < 8 && tile.y - i >= 0)
+                    {
+                        if (Program.game.board.tiles[tile.x + i, tile.y - i].piece is null)
+                        {
+                            ts.Add(Program.game.board.tiles[tile.x + i, tile.y - i]);
+                        }
+                        else
+                        {
+                            ul = false;
+                            if (Program.game.board.tiles[tile.x + i, tile.y - i].piece!.team != this.team)
+                            {
+                                ts.Add(Program.game.board.tiles[tile.x + i, tile.y - i]);
+                            }
+                        }
+                    }
+                    if (ur && tile.x + i < 8 && tile.y + i < 8)
+                    {
+                        if (Program.game.board.tiles[tile.x + i, tile.y + i].piece is null)
+                        {
+                            ts.Add(Program.game.board.tiles[tile.x + i, tile.y + i]);
+                        }
+                        else
+                        {
+                            ur = false;
+                            if (Program.game.board.tiles[tile.x + i, tile.y + i].piece!.team != this.team)
+                            {
+                                ts.Add(Program.game.board.tiles[tile.x + i, tile.y + i]);
+                            }
+                        }
+                    }
+                    if (dl && tile.x - i >= 0 && tile.y - i >= 0)
+                    {
+                        if (Program.game.board.tiles[tile.x - i, tile.y - i].piece is null)
+                        {
+                            ts.Add(Program.game.board.tiles[tile.x - i, tile.y - i]);
+                        }
+                        else
+                        {
+                            dl = false;
+                            if (Program.game.board.tiles[tile.x - i, tile.y - i].piece!.team != this.team)
+                            {
+                                ts.Add(Program.game.board.tiles[tile.x - i, tile.y - i]);
+                            }
+                        }
+                    }
+                    if (dr && tile.x - i >= 0 && tile.y + i < 8)
+                    {
+                        if (Program.game.board.tiles[tile.x - i, tile.y + i].piece is null)
+                        {
+                            ts.Add(Program.game.board.tiles[tile.x - i, tile.y + i]);
+                        }
+                        else
+                        {
+                            dr = false;
+                            if (Program.game.board.tiles[tile.x - i, tile.y + i].piece!.team != this.team)
+                            {
+                                ts.Add(Program.game.board.tiles[tile.x - i, tile.y + i]);
+                            }
+                        }
+                    }
+                }
                 break;
             case 'N':
-
+                if (tile.x - 2 >= 0 && tile.y - 1 >= 0
+                    && (Program.game.board.tiles[tile.x - 2, tile.y - 1].piece is null
+                    || Program.game.board.tiles[tile.x - 2, tile.y - 1].piece!.team != this.team))
+                {
+                    ts.Add(Program.game.board.tiles[tile.x - 2, tile.y - 1]);
+                }
+                if (tile.x - 2 >= 0 && tile.y + 1 < 8 
+                    && (Program.game.board.tiles[tile.x - 2, tile.y + 1].piece is null 
+                    || Program.game.board.tiles[tile.x - 2, tile.y + 1].piece!.team != this.team))
+                {
+                    ts.Add(Program.game.board.tiles[tile.x - 2, tile.y + 1]);
+                }
+                if (tile.x - 1 >= 0 && tile.y - 2 >= 0
+                    && (Program.game.board.tiles[tile.x - 1, tile.y - 2].piece is null
+                    || Program.game.board.tiles[tile.x - 1, tile.y - 2].piece!.team != this.team))
+                {
+                    ts.Add(Program.game.board.tiles[tile.x - 1, tile.y - 2]);
+                }
+                if (tile.x - 1 >= 0 && tile.y + 2 < 8
+                    && (Program.game.board.tiles[tile.x - 1, tile.y + 2].piece is null
+                    || Program.game.board.tiles[tile.x - 1, tile.y + 2].piece!.team != this.team))
+                {
+                    ts.Add(Program.game.board.tiles[tile.x - 1, tile.y + 2]);
+                }
+                if (tile.x + 1 < 8 && tile.y - 2 >= 0
+                    && (Program.game.board.tiles[tile.x + 1, tile.y - 2].piece is null
+                    || Program.game.board.tiles[tile.x + 1, tile.y - 2].piece!.team != this.team))
+                {
+                    ts.Add(Program.game.board.tiles[tile.x + 1, tile.y - 2]);
+                }
+                if (tile.x + 1 < 8 && tile.y + 2 < 8
+                    && (Program.game.board.tiles[tile.x + 1, tile.y + 2].piece is null
+                    || Program.game.board.tiles[tile.x + 1, tile.y + 2].piece!.team != this.team))
+                {
+                    ts.Add(Program.game.board.tiles[tile.x + 1, tile.y + 2]);
+                }
+                if (tile.x + 2 < 8 && tile.y - 1 >= 0
+                    && (Program.game.board.tiles[tile.x + 2, tile.y - 1].piece is null
+                    || Program.game.board.tiles[tile.x + 2, tile.y - 1].piece!.team != this.team))
+                {
+                    ts.Add(Program.game.board.tiles[tile.x + 2, tile.y - 1]);
+                }
+                if (tile.x + 2 < 8 && tile.y + 1 < 8
+                    && (Program.game.board.tiles[tile.x + 2, tile.y + 1].piece is null
+                    || Program.game.board.tiles[tile.x + 2, tile.y + 1].piece!.team != this.team))
+                {
+                    ts.Add(Program.game.board.tiles[tile.x + 2, tile.y + 1]);
+                }
                 break;
             case 'P':
                 int direction = 0;
