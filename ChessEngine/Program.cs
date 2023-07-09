@@ -1,5 +1,7 @@
 ﻿
 
+using System.Collections.Generic;
+using System.Diagnostics.Metrics;
 using System.Runtime.CompilerServices;
 
 public static class Program
@@ -14,15 +16,14 @@ public static class Program
 
 public class Game
 {
+    int turn = 0;
     public Board board = new Board();
+    public Piece[][] pieces = new Piece[2][];
 
     public Game()
     {
-        for (int i = 0; i < 8; i++)
-        {
-            board.tiles[i, 1].piece = new Piece('P', 0, board.tiles[i, 1]);
-            board.tiles[i, 6].piece = new Piece('P', 1, board.tiles[i, 6]);
-        }
+        pieces[0] = new Piece[16];
+        pieces[1] = new Piece[16];
 
         //White Pieces
         board.tiles[0, 0].piece = new Piece('R', 0, board.tiles[0, 0]);
@@ -43,6 +44,89 @@ public class Game
         board.tiles[5, 7].piece = new Piece('B', 1, board.tiles[5, 7]);
         board.tiles[6, 7].piece = new Piece('N', 1, board.tiles[6, 7]);
         board.tiles[7, 7].piece = new Piece('R', 1, board.tiles[7, 7]);
+
+        for (int i = 0; i < 8; i++)
+        {
+            pieces[0][8 + i] = board.tiles[i, 0].piece!;
+            pieces[1][8 + i] = board.tiles[i, 7].piece!;
+        }
+
+        for (int i = 0; i < 8; i++)
+        {
+            board.tiles[i, 1].piece = new Piece('P', 0, board.tiles[i, 1]);
+            board.tiles[i, 6].piece = new Piece('P', 1, board.tiles[i, 6]);
+            pieces[0][i] = board.tiles[i, 1].piece!;
+            pieces[1][i] = board.tiles[i, 6].piece!;
+        }
+    }
+
+    public bool movePiece(Piece piece, Board.Tile target)
+    {
+        if (!piece.getMoves().Contains(target))
+        {
+            return false;
+        }
+        Board.Tile pieceOrigin = piece.tile;
+        pieceOrigin.piece = null;
+        piece.tile = target;
+
+        Piece? originalPiece = null;
+        if (target.piece is not null) 
+        {
+            originalPiece = target.piece;
+        }
+        target.piece = piece;
+
+        if (checkForCheck(turn%2))
+        {
+            pieceOrigin.piece = piece;
+            piece.tile = pieceOrigin;
+            target.piece = originalPiece;
+            return false;
+        }
+
+        if (originalPiece is not null)
+        {
+            for (int i = 0; i <= 16; i++)
+            {
+                if (pieces[1 - (turn % 2)][i] == originalPiece)
+                {
+                    pieces[1 - (turn % 2)][i].tile = new Board.Tile(-1, -1);
+                    break;
+                }
+            }
+        }
+        return true;
+    }
+
+    public List<Board.Tile> moveList(int team)
+    {
+        List<Board.Tile> moves = new List<Board.Tile>();
+        foreach (Piece piece in pieces[team])
+        {
+            moves.AddRange(piece.getMoves());
+        }
+        return moves;
+    }
+
+    public bool checkForCheck(int team)
+    {
+        if (moveList(1- team).Contains(pieces[team][12].tile))
+        {
+            return true;
+        }
+        return false;
+    }
+
+    public bool checkLegal(Piece piece, Board.Tile target) 
+    {
+        if(piece.getMoves().Contains(target))
+        {
+            return false;
+        }
+
+
+        return true;
     }
 
     public void displayBoard()
