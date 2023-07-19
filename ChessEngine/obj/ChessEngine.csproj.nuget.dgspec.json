@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "E:\\Projects\\ChessEngine\\ChessEngine\\ChessEngine.csproj": {}
+    "D:\\Projects\\ChessEngine\\ChessEngine\\ChessEngine.csproj": {}
   },
   "projects": {
-    "E:\\Projects\\ChessEngine\\ChessEngine\\ChessEngine.csproj": {
+    "D:\\Projects\\ChessEngine\\ChessEngine\\ChessEngine.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "E:\\Projects\\ChessEngine\\ChessEngine\\ChessEngine.csproj",
+        "projectUniqueName": "D:\\Projects\\ChessEngine\\ChessEngine\\ChessEngine.csproj",
         "projectName": "ChessEngine",
-        "projectPath": "E:\\Projects\\ChessEngine\\ChessEngine\\ChessEngine.csproj",
+        "projectPath": "D:\\Projects\\ChessEngine\\ChessEngine\\ChessEngine.csproj",
         "packagesPath": "C:\\Users\\xanda\\.nuget\\packages\\",
-        "outputPath": "E:\\Projects\\ChessEngine\\ChessEngine\\obj\\",
+        "outputPath": "D:\\Projects\\ChessEngine\\ChessEngine\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\xanda\\AppData\\Roaming\\NuGet\\NuGet.Config",
@@ -55,7 +55,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\7.0.304\\RuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\7.0.306\\RuntimeIdentifierGraph.json"
         }
       }
     }

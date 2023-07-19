@@ -14,7 +14,10 @@ public static class Program
         }
 
         game.displayBoard();
-        Console.WriteLine("CHECKMATE!!! {0} WINS", game.turn == 0? "Black" : "White");
+        Console.WriteLine("CHECKMATE!!! {0} WINS", game.turn % 2 == 0? "Black" : "White");
+
+        Console.WriteLine("Move list:");
+        Console.WriteLine("{0}", String.Join(", ", game.moveList));
     }
 }
 
@@ -23,6 +26,7 @@ public class Game
     public int turn = 0;
     public Tile[,] board = new Tile[8, 8];
     public Piece?[][] pieces = new Piece[2][];
+    public List<string> moveList = new List<string>();
 
     public Game()
     {
@@ -38,56 +42,34 @@ public class Game
         pieces[1] = new Piece[16];
 
         //White Pieces
-        board[0, 0].piece = new Piece('R', 0, board[0, 0]);
-        board[1, 0].piece = new Piece('N', 0, board[1, 0]);
-        board[2, 0].piece = new Piece('B', 0, board[2, 0]);
-        board[3, 0].piece = new Piece('Q', 0, board[3, 0]);
-        board[4, 0].piece = new Piece('K', 0, board[4, 0]);
-        board[5, 0].piece = new Piece('B', 0, board[5, 0]);
-        board[6, 0].piece = new Piece('N', 0, board[6, 0]);
-        board[7, 0].piece = new Piece('R', 0, board[7, 0]);
+        pieces[0][0] = new Piece(this, 'R', 0, board[0, 0]);
+        pieces[0][1] = new Piece(this, 'N', 0, board[1, 0]);
+        pieces[0][2] = new Piece(this, 'B', 0, board[2, 0]);
+        pieces[0][3] = new Piece(this, 'Q', 0, board[3, 0]);
+        pieces[0][4] = new Piece(this, 'K', 0, board[4, 0]);
+        pieces[0][5] = new Piece(this, 'B', 0, board[5, 0]);
+        pieces[0][6] = new Piece(this, 'N', 0, board[6, 0]);
+        pieces[0][7] = new Piece(this, 'R', 0, board[7, 0]);
 
         //Black Pieces
-        board[0, 7].piece = new Piece('R', 1, board[0, 7]);
-        board[1, 7].piece = new Piece('N', 1, board[1, 7]);
-        board[2, 7].piece = new Piece('B', 1, board[2, 7]);
-        board[3, 7].piece = new Piece('Q', 1, board[3, 7]);
-        board[4, 7].piece = new Piece('K', 1, board[4, 7]);
-        board[5, 7].piece = new Piece('B', 1, board[5, 7]);
-        board[6, 7].piece = new Piece('N', 1, board[6, 7]);
-        board[7, 7].piece = new Piece('R', 1, board[7, 7]);
+        pieces[1][0] = new Piece(this, 'R', 1, board[0, 7]);
+        pieces[1][1] = new Piece(this, 'N', 1, board[1, 7]);
+        pieces[1][2] = new Piece(this, 'B', 1, board[2, 7]);
+        pieces[1][3] = new Piece(this, 'Q', 1, board[3, 7]);
+        pieces[1][4] = new Piece(this, 'K', 1, board[4, 7]);
+        pieces[1][5] = new Piece(this, 'B', 1, board[5, 7]);
+        pieces[1][6] = new Piece(this, 'N', 1, board[6, 7]);
+        pieces[1][7] = new Piece(this, 'R', 1, board[7, 7]);
 
         for (int i = 0; i < 8; i++)
         {
-            pieces[0][8 + i] = board[i, 0].piece!;
-            pieces[1][8 + i] = board[i, 7].piece!;
-        }
+            pieces[0][8 + i] = new Piece(this, 'P', 0, board[i, 1]);
+            pieces[1][8 + i] = new Piece(this, 'P', 1, board[i, 6]);
 
-        for (int i = 0; i < 8; i++)
-        {
-            board[i, 1].piece = new Piece('P', 0, board[i, 1]);
-            board[i, 6].piece = new Piece('P', 1, board[i, 6]);
-            pieces[0][i] = board[i, 1].piece!;
-            pieces[1][i] = board[i, 6].piece!;
-        }
-    }
-
-    public struct Tile
-    {
-        public int x;
-        public int y;
-        public Piece? piece = null;
-
-        public Tile(int x, int y)
-        {
-            this.x = x;
-            this.y = y;
-        }
-
-        public bool Equals(Tile t)
-        {
-            if (x == t.x && y == t.y) return true;
-            return false;
+            board[i, 0].setPiece(pieces[0][i]);
+            board[i, 1].setPiece(pieces[0][8 + i]);
+            board[i, 6].setPiece(pieces[1][8 + i]);
+            board[i, 7].setPiece(pieces[1][i]);
         }
     }
 
@@ -95,259 +77,167 @@ public class Game
     {
         displayBoard();
         string? input;
-        string move;
-        string piece;
         bool keepRunning = true;
         do
         {
-            Console.WriteLine("Next move:");
+            Console.WriteLine("\nNext move:");
             input = Console.ReadLine();
 
             if (input is null)
             {
                 continue;
             }
-            string pieceString = @"^[KQNBR][abcdefgh12345678]?";
-            string moveString = @"[abcdefgh][12345678]\+?$";
-            string movePawn = @"^[abcdefgh][12345678]\+?$";
-            string pawnCapture = @"^[abcdefgh]x?[abcdefgh][12345678]\+?$";
+
+            string pawnMove = @"^[abcdefgh][12345678]\+?$";
+            string pawnCapture = @"^[abcdefgh]x[abcdefgh][12345678]\+?$";
             string pieceMove = @"^[KQNBR][abcdefgh12345678]?x?[abcdefgh][12345678]\+?$";
+            string check = @"\+$";
+            string capture = @"x";
 
-            string r1 = Regex.Match(input, pieceString).Value;
-            string r2 = Regex.Match(input, moveString).Value;
-            string r3 = Regex.Match(input, movePawn).Value;
-            string r4 = Regex.Match(input, pawnCapture).Value;
-            string r5 = Regex.Match(input, pieceMove).Value;
+            string r1 = Regex.Match(input, pawnMove).Value;
+            string r2 = Regex.Match(input, pawnCapture).Value;
+            string r3 = Regex.Match(input, pieceMove).Value;
+            string r4 = Regex.Match(input, check).Value;
+            string r5 = Regex.Match(input, capture).Value;
 
-            if (r4 != "")
+            string piece;
+            string move;
+            if (r1 != "")
             {
-                piece = r4.Substring(0, 1);
-                move = r2.Substring(0, 2);
-
+                piece = r1.Substring(0, 1);
+                move = r1.Substring(0, 2);
+            }
+            else if (r2 != "")
+            {
+                piece = r2.Substring(0, 1);
+                move = r2.Substring(2, 2);
             }
             else if (r3 != "")
             {
-                piece = r3.Substring(0, 1);
-                move = r3.Substring(0, 2);
-            }
-            else if (r2 != "" && r1 != "")
-            {
-                piece = r1.Substring(0, 1);
-                move = r2.Substring(0, 2);
+                piece = r3.Substring(0, r3.Length - r4.Length - r5.Length - 2);
+                move = r3.Substring(r3.Length - r4.Length - 2, 2);
             }
             else
             {
                 continue;
             }
-            Console.WriteLine("Piece: " + piece + " Move: " + move);
+            Console.WriteLine("Piece: {0}, Move: {1}", piece, move);
 
-            int tileX = move[0] - 'a';
-            int tileY = move[1] - '1';
-            Tile t = board[tileX, tileY];
-            Console.WriteLine("Tile coord ({0},{1})", t.x, t.y);
+            Tile target = board[move[0] - 'a', move[1] - '1'];
 
-            char[] validPieceLetters = new char[] { 'K', 'Q', 'N', 'B', 'R' };
-            char[] validPawnLetters = new char[] { 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h' };
-
-            if (validPawnLetters.Contains(piece[0]))
+            if (r1 != "" || r2 != "")
             {
-                int x = piece[0] - 'a';
-                for (int i = 0; i < 8; i++)
+                for (int i = 8; i < 16; i++)
                 {
                     if (pieces[turn % 2][i] is not null
-                        && pieces[turn % 2][i]!.type == 'P'
-                        && pieces[turn % 2][i]!.tile.x == x)
+                        && pieces[turn % 2][i]!.getTile().getX() == piece[0] - 'a'
+                        && movePiece(pieces[turn % 2][i]!, target))
                     {
-                        if (movePiece(pieces[turn % 2][i]!, t))
-                        {
-                            keepRunning = false;
-                            break;
-                        }
+                        keepRunning = false;
+                        break;
                     }
                 }
             }
-            if (validPieceLetters.Contains(piece[0]))
+            else
             {
-                if (r1.Length > 1)
+                for (int i = 0; i < 8; i++)
                 {
-                    if (r1[1] - 'a' >= 0 && r1[1] - 'a' < 8)
+                    if (pieces[turn % 2][i] is not null && pieces[turn % 2][i]!.getType() == piece[0]
+                        && ((piece.Length > 1 && (pieces[turn % 2][i]!.getTile().getX() == piece[1] - 'a'
+                                                || pieces[turn % 2][i]!.getTile().getY() == piece[1] - '1'))
+                          || piece.Length == 1) && movePiece(pieces[turn % 2][i]!, target))
                     {
-                        for (int i = 8; i < 16; i++)
-                        {
-                            if (pieces[turn % 2][i] is not null
-                                && pieces[turn % 2][i]!.type == piece[0]
-                                && pieces[turn % 2][i]!.tile.x == r1[1] - 'a')
-                            {
-                                if (movePiece(pieces[turn % 2][i]!, t))
-                                {
-                                    keepRunning = false;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    else if (r1[1] - '1' >= 0 && r1[1] - '1' < 8)
-                    {
-                        for (int i = 8; i < 16; i++)
-                        {
-                            if (pieces[turn % 2][i] is not null
-                                && pieces[turn % 2][i]!.type == piece[0]
-                                && pieces[turn % 2][i]!.tile.y == r1[1] - '1')
-                            {
-                                if (movePiece(pieces[turn % 2][i]!, t))
-                                {
-                                    keepRunning = false;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-                else
-                {
-                    for (int i = 8; i < 16; i++)
-                    {
-                        if (pieces[turn % 2][i] is not null
-                            && pieces[turn % 2][i]!.type == piece[0])
-                        {
-                            if (movePiece(pieces[turn % 2][i]!, t))
-                            {
-                                keepRunning = false;
-                                break;
-                            }
-                        }
+                        keepRunning = false;
+                        break;
                     }
                 }
             }
         } while (keepRunning);
+        moveList.Add(input!);
 
         turn++;
-        return checkMateCheck();
+        return checkMate();
     }
 
-    // Moves the piece to the target if it can
-    public bool movePiece(Piece piece, Tile target)
+    // Checks if a move is legal.
+    public bool moveCheck(Piece p, Tile t)
     {
-        if (!piece.getMoves().Contains(target))
-        {
-            return false;
-        }
+        Tile originalTile = p.getTile();
+        Piece? originalPiece = t.getPiece();
 
-        string move = "";
-        if (piece.type == 'P')
-        {
-            move += (char)(piece.tile.x + 'a');
-        }
-        else
-        {
-            move += piece.type;
-            for (int i = 0; i < 8; i++)
-            {
-                if (Program.game.pieces[piece.team][8 + i] == piece
-                    && Program.game.pieces[piece.team][15 - i] != null)
-                {
-                    if (Program.game.pieces[piece.team][15 - i]!.tile.x == piece.tile.x)
-                    {
-                        move += (char)(piece.tile.x + 'a');
-                    }
-                    else if (Program.game.pieces[piece.team][15 - i]!.tile.y == piece.tile.y)
-                    {
-                        move += (char)(piece.tile.y + '0');
-                    }
-                }
-            }
-        }
+        p.getTile().clearPiece();
+        p.setTile(t);
+        t.setPiece(p);
+        
+        bool r = checkCheck(p.getTeam());
 
-        if (target.piece is not null)
-        {
-            move += 'x';
-            move += (char)(target.x + 'a') + (char)(target.y + '0');
-            for (int i = 0; i <= 16; i++)
-            {
-                if (pieces[1 - (turn % 2)][i] == target.piece)
-                {
-                    pieces[1 - (turn % 2)][i] = null;
-                    break;
-                }
-            }
-        }
-        else
-        {
-            if (piece.type == 'P')
-            {
-                move += (char)(target.y + '1');
-            }
-            else
-            {
-                move += (char)(target.x + 'a');
-                move += (char)(target.y + '1');
-            }
-        }
+        p.setTile(originalTile);
+        p.getTile().setPiece(p);
+        t.setPiece(originalPiece);
 
-        board[piece.tile.x, piece.tile.y].piece = null;
-        piece.tile = target;
-        board[target.x, target.y].piece = piece;
-
-        if (checkForCheck((turn + 1) % 2))
-        {
-            move += '+';
-        }
-
-        Console.WriteLine("Move: {0}", move);
-        return true;
+        return !r;
     }
 
-    // Checks if the current player is in checkmate
-    public bool checkMateCheck()
+    public bool checkCheck(int team)
     {
-        if (checkForCheck(turn % 2))
-        {
-            List<Tile> moves = moveList(turn % 2);
-            for (int i = 0; i < moves.Count; i++)
-            {
-                Tile tile = moves[i];
-                Piece? originalPiece = null;
-
-                if (tile.piece is not null)
-                {
-                    originalPiece = tile.piece;
-                }
-
-                tile.piece = new Piece('P', turn % 2, tile);
-                bool check = !checkForCheck(turn % 2);
-                tile.piece = originalPiece;
-
-                if (check)
-                {
-                    return false;
-                }
-            }
-            return true;
-        }
-        return false;
-    }
-
-    // Checks if the provided team is in check
-    public bool checkForCheck(int team)
-    {
-        if (moveList(1 - team).Contains(pieces[team][12]!.tile))
+        List<Tile> moveList = getMoves((team + 1) % 2, false);
+        if (moveList.Contains(pieces[team][4]!.getTile()))
         {
             return true;
         }
         return false;
     }
 
-    public List<Tile> moveList(int team)
+    /* kingMoves is used to decide if legal king moves should be included in the list.
+     * This should always be true unless you are checking for check. 
+     */
+    public List<Tile> getMoves(int team, bool legalMoves)
     {
         List<Tile> moves = new List<Tile>();
         foreach (Piece? piece in pieces[team])
         {
             if (piece is not null)
             {
-                moves.AddRange(piece.getMoves());
+                moves.AddRange(piece.getMoves(legalMoves));
             }
         }
         return moves;
+    }
+
+    // Moves the piece to the target as long as the move is legal
+    public bool movePiece(Piece piece, Tile target)
+    {
+        if (!piece.getMoves(true).Contains(target))
+        {
+            return false;
+        }
+
+        if (target.getPiece() is not null)
+        {
+            for (int i = 0; i <= 16; i++)
+            {
+                if (pieces[(turn + 1) % 2][i] == target.getPiece())
+                {
+                    pieces[(turn + 1) % 2][i] = null;
+                    break;
+                }
+            }
+        }
+
+        piece.getTile().clearPiece();
+        piece.setTile(target);
+        target.setPiece(piece!);
+
+        return true;
+    }
+
+    public bool checkMate()
+    {
+        if (checkCheck(turn % 2) && getMoves(turn % 2, true).Count == 0)
+        {
+            return true;
+        }
+        return false;
     }
 
     public void displayBoard()
@@ -380,11 +270,11 @@ public class Game
                     {
                         char pieceChar = ' ';
                         Console.Write("|  ");
-                        if (board[j, 7 - (i - 2) / 4].piece is not null)
+                        if (board[j, 7 - (i - 2) / 4].getPiece() is not null)
                         {
-                            pieceChar = board[j, 7 - (i - 2) / 4].piece!.type;
+                            pieceChar = board[j, 7 - (i - 2) / 4].getPiece()!.getType();
 
-                            if (board[j, 7 - (i - 2) / 4].piece!.team == 0)
+                            if (board[j, 7 - (i - 2) / 4].getPiece()!.getTeam() == 0)
                             {
                                 Console.ForegroundColor = ConsoleColor.White;
                             }
@@ -417,407 +307,478 @@ public class Game
     }
 }
 
+public class Tile
+{
+    private int x;
+    private int y;
+    private Piece? piece = null;
+
+    public Tile(int x, int y)
+    {
+        this.x = x;
+        this.y = y;
+    }
+
+    public int getX() { return x; }
+    public void setX(int x) { this.x = x; }
+
+    public int getY() { return y; }
+    public void setY(int y) { this.y = y; }
+
+    public Piece? getPiece()
+    {
+        return piece;
+    }
+
+    public void setPiece(Piece? piece)
+    {
+        this.piece = piece;
+    }
+
+    public void clearPiece()
+    {
+        piece = null;
+    }
+}
+
 public class Piece
 {
-    public char type;
-    public int team;
-    public Game.Tile tile;
+    Game owner;
+    private char type;
+    private int team;
+    private Tile tile;
 
-    public Piece(char type, int team, Game.Tile tile)
+    public Piece(Game owner, char type, int team, Tile tile)
     {
+        this.owner = owner;
         this.type = type;
         this.team = team;
         this.tile = tile;
     }
 
-    public List<Game.Tile> getMoves()
+    public int tileCheck(Tile t)
     {
-        List<Game.Tile> ts = new List<Game.Tile>();
-
-        if (Program.game.turn % 2 == team)
+        if (t.getPiece() is not null)
         {
-            tile.piece = null;
-            bool check = Program.game.checkForCheck(team);
-            tile.piece = this;
-
-            if (check)
+            if (t.getPiece()!.getTeam() == team)
             {
-                return ts;
+                return 0;
             }
+            return 1;
         }
+        return 2;
+    }
 
-        bool u = true;
-        bool d = true;
-        bool l = true;
-        bool r = true;
-        bool ul = true;
-        bool ur = true;
-        bool dl = true;
-        bool dr = true;
+    public List<Tile> getMoves(bool checkLegality)
+    {
+        List<Tile> moves = new List<Tile>();
+        Tile t;
+        int control = 0b11111111;
+        bool p = true;
+
         switch (type)
         {
             case 'K':
-                for (int i = Math.Max(tile.x - 1, 0); i <= Math.Min(tile.x + 1, 7); i++)
+                for (int i = Math.Max(0, tile.getX() - 1); i <= Math.Min(tile.getX() + 1, 7); i++)
                 {
-                    for (int k = Math.Max(tile.y - 1, 0); k <= Math.Min(tile.y + 1, 7); k++)
+                    for (int j = Math.Max(0, tile.getY() - 1); j <= Math.Min(tile.getY() + 1, 7); j++)
                     {
-                        Game.Tile checkTile = Program.game.board[i, k];
-                        if ((checkTile.x == tile.x && checkTile.y == tile.y)
-                            || (checkTile.piece is not null && checkTile.piece!.team == this.team))
+                        if (i == tile.getX() && j == tile.getY())
                         {
                             continue;
                         }
-
-                        ts.Add(checkTile);
+                        
+                        t = owner.board[i, j];
+                        p = checkLegality == true ? owner.moveCheck(this, t) : true;
+                        if (!checkLegality || (tileCheck(t) != 0 && p))
+                        {
+                            moves.Add(t); 
+                        }
                     }
                 }
                 break;
             case 'Q':
-                for (int i = 1; i < 8; i++)
+                for (int i = 1; i < 7; i++)
                 {
-                    if (u && tile.x + i < 8)
+                    if (tile.getX() + i < 8)
                     {
-                        if (Program.game.board[tile.x + i, tile.y].piece is null)
+                        if ((control & 0b0001) == 0b0001)
                         {
-                            ts.Add(Program.game.board[tile.x + i, tile.y]);
-                        }
-                        else
-                        {
-                            u = false;
-                            if (Program.game.board[tile.x + i, tile.y].piece!.team != this.team)
+                            t = owner.board[tile.getX() + i, tile.getY()];
+                            int tc = tileCheck(t);
+                            p = checkLegality == true ? owner.moveCheck(this, t) : true;
+                            if (tc != 2)
                             {
-                                ts.Add(Program.game.board[tile.x + i, tile.y]);
+                                control -= 0b0001;
+                            }
+                            if (!checkLegality || (tc != 0 && p))
+                            {
+                                moves.Add(t);
+                            }
+                        }
+                        if (tile.getY() + i < 8 && (control & 0b10000000) == 0b10000000)
+                        {
+                            t = owner.board[tile.getX() + i, tile.getY() + i];
+                            int tc = tileCheck(t);
+                            p = checkLegality == true ? owner.moveCheck(this, t) : true;
+                            if (tc != 2)
+                            {
+                                control -= 0b10000000;
+                            }
+                            if (!checkLegality || (tc != 0 && p))
+                            {
+                                moves.Add(t);
+                            }
+                        }
+                        if (tile.getY() - i >= 0 && (control & 0b01000000) == 0b01000000)
+                        {
+                            t = owner.board[tile.getX() + i, tile.getY() - i];
+                            int tc = tileCheck(t);
+                            p = checkLegality == true ? owner.moveCheck(this, t) : true;
+                            if (tc != 2)
+                            {
+                                control -= 0b01000000;
+                            }
+                            if (!checkLegality || (tc != 0 && p))
+                            {
+                                moves.Add(t);
                             }
                         }
                     }
-                    if (d && tile.x - i >= 0)
+                    if (tile.getX() - i >= 0)
                     {
-                        if (Program.game.board[tile.x - i, tile.y].piece is null)
+                        if ((control & 0b0010) == 0b0010)
                         {
-                            ts.Add(Program.game.board[tile.x - i, tile.y]);
-                        }
-                        else
-                        {
-                            d = false;
-                            if (Program.game.board[tile.x - i, tile.y].piece!.team != this.team)
+                            t = owner.board[tile.getX() - i, tile.getY()];
+                            int tc = tileCheck(t);
+                            p = checkLegality == true ? owner.moveCheck(this, t) : true;
+                            if (tc != 2)
                             {
-                                ts.Add(Program.game.board[tile.x - i, tile.y]);
+                                control -= 0b0010;
+                            }
+                            if (!checkLegality || (tc != 0 && p))
+                            {
+                                moves.Add(t);
+                            }
+                        }
+                        if (tile.getY() + i < 8 && (control & 0b00100000) == 0b00100000)
+                        {
+                            t = owner.board[tile.getX() - i, tile.getY() + i];
+                            int tc = tileCheck(t);
+                            p = checkLegality == true ? owner.moveCheck(this, t) : true;
+                            if (tc != 2)
+                            {
+                                control -= 0b00100000;
+                            }
+                            if (!checkLegality || (tc != 0 && p))
+                            {
+                                moves.Add(t);
+                            }
+                        }
+                        if (tile.getY() - i >= 0 && (control & 0b00010000) == 0b00010000)
+                        {
+                            t = owner.board[tile.getX() - i, tile.getY() - i];
+                            int tc = tileCheck(t);
+                            p = checkLegality == true ? owner.moveCheck(this, t) : true;
+                            if (tc != 2)
+                            {
+                                control -= 0b00010000;
+                            }
+                            if (!checkLegality || (tc != 0 && p))
+                            {
+                                moves.Add(t);
                             }
                         }
                     }
-                    if (l && tile.y - i >= 0)
+                    if (tile.getY() + i < 8 && (control & 0b0100) == 0b0100)
                     {
-                        if (Program.game.board[tile.x, tile.y - i].piece is null)
+                        t = owner.board[tile.getX(), tile.getY() + i];
+                        int tc = tileCheck(t);
+                        p = checkLegality == true ? owner.moveCheck(this, t) : true;
+                        if (tc != 2)
                         {
-                            ts.Add(Program.game.board[tile.x, tile.y - i]);
+                            control -= 0b0100;
                         }
-                        else
+                        if (!checkLegality || (tc != 0 && p))
                         {
-                            l = false;
-                            if (Program.game.board[tile.x, tile.y - i].piece!.team != this.team)
-                            {
-                                ts.Add(Program.game.board[tile.x, tile.y - i]);
-                            }
+                            moves.Add(t);
                         }
                     }
-                    if (r && tile.y + i < 8)
+                    if (tile.getY() - i >= 0 && (control & 0b1000) == 0b1000)
                     {
-                        if (Program.game.board[tile.x, tile.y + i].piece is null)
+                        t = owner.board[tile.getX(), tile.getY() - i];
+                        int tc = tileCheck(t);
+                        p = checkLegality == true ? owner.moveCheck(this, t) : true;
+                        if (tc != 2)
                         {
-                            ts.Add(Program.game.board[tile.x, tile.y + i]);
+                            control -= 0b1000;
                         }
-                        else
+                        if (!checkLegality || (tc != 0 && p))
                         {
-                            r = false;
-                            if (Program.game.board[tile.x, tile.y + i].piece!.team != this.team)
-                            {
-                                ts.Add(Program.game.board[tile.x, tile.y + i]);
-                            }
-                        }
-                    }
-                    if (ul && tile.x + i < 8 && tile.y - i >= 0)
-                    {
-                        if (Program.game.board[tile.x + i, tile.y - i].piece is null)
-                        {
-                            ts.Add(Program.game.board[tile.x + i, tile.y - i]);
-                        }
-                        else
-                        {
-                            ul = false;
-                            if (Program.game.board[tile.x + i, tile.y - i].piece!.team != this.team)
-                            {
-                                ts.Add(Program.game.board[tile.x + i, tile.y - i]);
-                            }
-                        }
-                    }
-                    if (ur && tile.x + i < 8 && tile.y + i < 8)
-                    {
-                        if (Program.game.board[tile.x + i, tile.y + i].piece is null)
-                        {
-                            ts.Add(Program.game.board[tile.x + i, tile.y + i]);
-                        }
-                        else
-                        {
-                            ur = false;
-                            if (Program.game.board[tile.x + i, tile.y + i].piece!.team != this.team)
-                            {
-                                ts.Add(Program.game.board[tile.x + i, tile.y + i]);
-                            }
-                        }
-                    }
-                    if (dl && tile.x - i >= 0 && tile.y - i >= 0)
-                    {
-                        if (Program.game.board[tile.x - i, tile.y - i].piece is null)
-                        {
-                            ts.Add(Program.game.board[tile.x - i, tile.y - i]);
-                        }
-                        else
-                        {
-                            dl = false;
-                            if (Program.game.board[tile.x - i, tile.y - i].piece!.team != this.team)
-                            {
-                                ts.Add(Program.game.board[tile.x - i, tile.y - i]);
-                            }
-                        }
-                    }
-                    if (dr && tile.x - i >= 0 && tile.y + i < 8)
-                    {
-                        if (Program.game.board[tile.x - i, tile.y + i].piece is null)
-                        {
-                            ts.Add(Program.game.board[tile.x - i, tile.y + i]);
-                        }
-                        else
-                        {
-                            dr = false;
-                            if (Program.game.board[tile.x - i, tile.y + i].piece!.team != this.team)
-                            {
-                                ts.Add(Program.game.board[tile.x - i, tile.y + i]);
-                            }
+                            moves.Add(t);
                         }
                     }
                 }
                 break;
             case 'R':
-                for (int i = 1; i < 8; i++)
+                for (int i = 1; i < 7; i++)
                 {
-                    if (u && tile.x + i < 8)
+                    if (tile.getX() + i < 8 && (control & 0b0001) == 0b0001)
                     {
-                        if (Program.game.board[tile.x + i, tile.y].piece is null)
+                        t = owner.board[tile.getX() + i, tile.getY()];
+                        int tc = tileCheck(t);
+                        p = checkLegality == true ? owner.moveCheck(this, t) : true;
+                        if (tc != 2)
                         {
-                            ts.Add(Program.game.board[tile.x + i, tile.y]);
+                            control -= 0b0001;
                         }
-                        else
+                        if (!checkLegality || (tc != 0 && p))
                         {
-                            u = false;
-                            if (Program.game.board[tile.x + i, tile.y].piece!.team != this.team)
-                            {
-                                ts.Add(Program.game.board[tile.x + i, tile.y]);
-                            }
+                            moves.Add(t);
                         }
                     }
-                    if (d && tile.x - i >= 0)
+                    if (tile.getX() - i >= 0 && (control & 0b0010) == 0b0010)
                     {
-                        if (Program.game.board[tile.x - i, tile.y].piece is null)
+                        t = owner.board[tile.getX() - i, tile.getY()];
+                        int tc = tileCheck(t);
+                        p = checkLegality == true ? owner.moveCheck(this, t) : true;
+                        if (tc != 2)
                         {
-                            ts.Add(Program.game.board[tile.x - i, tile.y]);
+                            control -= 0b0010;
                         }
-                        else
+                        if (!checkLegality || (tc != 0 && p))
                         {
-                            d = false;
-                            if (Program.game.board[tile.x - i, tile.y].piece!.team != this.team)
-                            {
-                                ts.Add(Program.game.board[tile.x - i, tile.y]);
-                            }
+                            moves.Add(t);
                         }
                     }
-                    if (l && tile.y - i >= 0)
+                    if (tile.getY() + i < 8 && (control & 0b0100) == 0b0100)
                     {
-                        if (Program.game.board[tile.x, tile.y - i].piece is null)
+                        t = owner.board[tile.getX(), tile.getY() + i];
+                        int tc = tileCheck(t);
+                        p = checkLegality == true ? owner.moveCheck(this, t) : true;
+                        if (tc != 2)
                         {
-                            ts.Add(Program.game.board[tile.x, tile.y - i]);
+                            control -= 0b0100;
                         }
-                        else
+                        if (!checkLegality || (tc != 0 && p))
                         {
-                            l = false;
-                            if (Program.game.board[tile.x, tile.y - i].piece!.team != this.team)
-                            {
-                                ts.Add(Program.game.board[tile.x, tile.y - i]);
-                            }
+                            moves.Add(t);
                         }
                     }
-                    if (r && tile.y + i < 8)
+                    if (tile.getY() - i >= 0 && (control & 0b1000) == 0b1000)
                     {
-                        if (Program.game.board[tile.x, tile.y + i].piece is null)
+                        t = owner.board[tile.getX(), tile.getY() - i];
+                        int tc = tileCheck(t);
+                        p = checkLegality == true ? owner.moveCheck(this, t) : true;
+                        if (tc != 2)
                         {
-                            ts.Add(Program.game.board[tile.x, tile.y + i]);
+                            control -= 0b1000;
                         }
-                        else
+                        if (!checkLegality || (tc != 0 && p))
                         {
-                            r = false;
-                            if (Program.game.board[tile.x, tile.y + i].piece!.team != this.team)
-                            {
-                                ts.Add(Program.game.board[tile.x, tile.y + i]);
-                            }
+                            moves.Add(t);
                         }
                     }
                 }
                 break;
             case 'B':
-                for (int i = 1; i < 8; i++)
+                for (int i = 1; i < 7; i++)
                 {
-                    if (ul && tile.x + i < 8 && tile.y - i >= 0)
+                    if (tile.getX() + i < 8)
                     {
-                        if (Program.game.board[tile.x + i, tile.y - i].piece is null)
+                        if (tile.getY() + i < 8 && (control & 0b10000000) == 0b10000000)
                         {
-                            ts.Add(Program.game.board[tile.x + i, tile.y - i]);
-                        }
-                        else
-                        {
-                            ul = false;
-                            if (Program.game.board[tile.x + i, tile.y - i].piece!.team != this.team)
+                            t = owner.board[tile.getX() + i, tile.getY() + i];
+                            int tc = tileCheck(t);
+                            p = checkLegality == true ? owner.moveCheck(this, t) : true;
+                            if (tc != 2)
                             {
-                                ts.Add(Program.game.board[tile.x + i, tile.y - i]);
+                                control -= 0b10000000;
+                            }
+                            if (!checkLegality || (tc != 0 && p))
+                            {
+                                moves.Add(t);
+                            }
+                        }
+                        if (tile.getY() - i >= 0 && (control & 0b01000000) == 0b01000000)
+                        {
+                            t = owner.board[tile.getX() + i, tile.getY() - i];
+                            int tc = tileCheck(t);
+                            p = checkLegality == true ? owner.moveCheck(this, t) : true;
+                            if (tc != 2)
+                            {
+                                control -= 0b01000000;
+                            }
+                            if (!checkLegality || (tc != 0 && p))
+                            {
+                                moves.Add(t);
                             }
                         }
                     }
-                    if (ur && tile.x + i < 8 && tile.y + i < 8)
+                    if (tile.getX() - i >= 0)
                     {
-                        if (Program.game.board[tile.x + i, tile.y + i].piece is null)
+                        if (tile.getY() + i < 8 && (control & 0b00100000) == 0b00100000)
                         {
-                            ts.Add(Program.game.board[tile.x + i, tile.y + i]);
-                        }
-                        else
-                        {
-                            ur = false;
-                            if (Program.game.board[tile.x + i, tile.y + i].piece!.team != this.team)
+                            t = owner.board[tile.getX() - i, tile.getY() + i];
+                            int tc = tileCheck(t);
+                            p = checkLegality == true ? owner.moveCheck(this, t) : true;
+                            if (tc != 2)
                             {
-                                ts.Add(Program.game.board[tile.x + i, tile.y + i]);
+                                control -= 0b00100000;
+                            }
+                            if (!checkLegality || (tc != 0 && p))
+                            {
+                                moves.Add(t);
                             }
                         }
-                    }
-                    if (dl && tile.x - i >= 0 && tile.y - i >= 0)
-                    {
-                        if (Program.game.board[tile.x - i, tile.y - i].piece is null)
+                        if (tile.getY() - i >= 0 && (control & 0b00010000) == 0b00010000)
                         {
-                            ts.Add(Program.game.board[tile.x - i, tile.y - i]);
-                        }
-                        else
-                        {
-                            dl = false;
-                            if (Program.game.board[tile.x - i, tile.y - i].piece!.team != this.team)
+                            t = owner.board[tile.getX() - i, tile.getY() - i];
+                            int tc = tileCheck(t);
+                            p = checkLegality == true ? owner.moveCheck(this, t) : true;
+                            if (tc != 2)
                             {
-                                ts.Add(Program.game.board[tile.x - i, tile.y - i]);
+                                control -= 0b00010000;
                             }
-                        }
-                    }
-                    if (dr && tile.x - i >= 0 && tile.y + i < 8)
-                    {
-                        if (Program.game.board[tile.x - i, tile.y + i].piece is null)
-                        {
-                            ts.Add(Program.game.board[tile.x - i, tile.y + i]);
-                        }
-                        else
-                        {
-                            dr = false;
-                            if (Program.game.board[tile.x - i, tile.y + i].piece!.team != this.team)
+                            if (!checkLegality || (tc != 0 && p))
                             {
-                                ts.Add(Program.game.board[tile.x - i, tile.y + i]);
+                                moves.Add(t);
                             }
                         }
                     }
                 }
                 break;
             case 'N':
-                if (tile.x - 2 >= 0 && tile.y - 1 >= 0
-                    && (Program.game.board[tile.x - 2, tile.y - 1].piece is null
-                    || Program.game.board[tile.x - 2, tile.y - 1].piece!.team != this.team))
+                if (tile.getX() + 2 < 8)
                 {
-                    ts.Add(Program.game.board[tile.x - 2, tile.y - 1]);
+                    if (tile.getY() + 1 < 8)
+                    {
+                        t = owner.board[tile.getX() + 2, tile.getY() + 1];
+                        p = checkLegality == true ? owner.moveCheck(this, t) : true;
+                        if (!checkLegality || (tileCheck(t) != 0 && p))
+                        {
+                            moves.Add(t);
+                        }
+                    }
+                    if (tile.getY() - 1 >= 0)
+                    {
+                        t = owner.board[tile.getX() + 2, tile.getY() - 1];
+                        p = checkLegality == true ? owner.moveCheck(this, t) : true;
+                        if (!checkLegality || (tileCheck(t) != 0 && p))
+                        {
+                            moves.Add(t);
+                        }
+                    }
                 }
-                if (tile.x - 2 >= 0 && tile.y + 1 < 8
-                    && (Program.game.board[tile.x - 2, tile.y + 1].piece is null
-                    || Program.game.board[tile.x - 2, tile.y + 1].piece!.team != this.team))
+                if (tile.getX() - 2 >= 0)
                 {
-                    ts.Add(Program.game.board[tile.x - 2, tile.y + 1]);
+                    if (tile.getY() + 1 < 8)
+                    {
+                        t = owner.board[tile.getX() - 2, tile.getY() + 1];
+                        p = checkLegality == true ? owner.moveCheck(this, t) : true;
+                        if (!checkLegality || (tileCheck(t) != 0 && p))
+                        {
+                            moves.Add(t);
+                        }
+                    }
+                    if (tile.getY() - 1 >= 0)
+                    {
+                        t = owner.board[tile.getX() - 2, tile.getY() - 1];
+                        p = checkLegality == true ? owner.moveCheck(this, t) : true;
+                        if (!checkLegality || (tileCheck(t) != 0 && p))
+                        {
+                            moves.Add(t);
+                        }
+                    }
                 }
-                if (tile.x - 1 >= 0 && tile.y - 2 >= 0
-                    && (Program.game.board[tile.x - 1, tile.y - 2].piece is null
-                    || Program.game.board[tile.x - 1, tile.y - 2].piece!.team != this.team))
+                if (tile.getX() + 1 < 8)
                 {
-                    ts.Add(Program.game.board[tile.x - 1, tile.y - 2]);
+                    if (tile.getY() + 2 < 8)
+                    {
+                        t = owner.board[tile.getX() + 1, tile.getY() + 2];
+                        p = checkLegality == true ? owner.moveCheck(this, t) : true;
+                        if (!checkLegality || (tileCheck(t) != 0 && p))
+                        {
+                            moves.Add(t);
+                        }
+                    }
+                    if (tile.getY() - 2 >= 0)
+                    {
+                        t = owner.board[tile.getX() + 1, tile.getY() - 2];
+                        p = checkLegality == true ? owner.moveCheck(this, t) : true;
+                        if (!checkLegality || (tileCheck(t) != 0 && p))
+                        {
+                            moves.Add(t);
+                        }
+                    }
                 }
-                if (tile.x - 1 >= 0 && tile.y + 2 < 8
-                    && (Program.game.board[tile.x - 1, tile.y + 2].piece is null
-                    || Program.game.board[tile.x - 1, tile.y + 2].piece!.team != this.team))
+                if (tile.getX() - 1 < 8)
                 {
-                    ts.Add(Program.game.board[tile.x - 1, tile.y + 2]);
-                }
-                if (tile.x + 1 < 8 && tile.y - 2 >= 0
-                    && (Program.game.board[tile.x + 1, tile.y - 2].piece is null
-                    || Program.game.board[tile.x + 1, tile.y - 2].piece!.team != this.team))
-                {
-                    ts.Add(Program.game.board[tile.x + 1, tile.y - 2]);
-                }
-                if (tile.x + 1 < 8 && tile.y + 2 < 8
-                    && (Program.game.board[tile.x + 1, tile.y + 2].piece is null
-                    || Program.game.board[tile.x + 1, tile.y + 2].piece!.team != this.team))
-                {
-                    ts.Add(Program.game.board[tile.x + 1, tile.y + 2]);
-                }
-                if (tile.x + 2 < 8 && tile.y - 1 >= 0
-                    && (Program.game.board[tile.x + 2, tile.y - 1].piece is null
-                    || Program.game.board[tile.x + 2, tile.y - 1].piece!.team != this.team))
-                {
-                    ts.Add(Program.game.board[tile.x + 2, tile.y - 1]);
-                }
-                if (tile.x + 2 < 8 && tile.y + 1 < 8
-                    && (Program.game.board[tile.x + 2, tile.y + 1].piece is null
-                    || Program.game.board[tile.x + 2, tile.y + 1].piece!.team != this.team))
-                {
-                    ts.Add(Program.game.board[tile.x + 2, tile.y + 1]);
+                    if (tile.getY() + 2 < 8)
+                    {
+                        t = owner.board[tile.getX() - 1, tile.getY() + 2];
+                        p = checkLegality == true ? owner.moveCheck(this, t) : true;
+                        if (!checkLegality || (tileCheck(t) != 0 && p))
+                        {
+                            moves.Add(t);
+                        }
+                    }
+                    if (tile.getY() - 2 >= 0)
+                    {
+                        t = owner.board[tile.getX() - 1, tile.getY() - 2];
+                        p = checkLegality == true ? owner.moveCheck(this, t) : true;
+                        if (!checkLegality || (tileCheck(t) != 0 && p))
+                        {
+                            moves.Add(t);
+                        }
+                    }
                 }
                 break;
             case 'P':
-                int direction = 0;
-                if (team == 0)
+                int direction = team == 0 ? 1 : -1;
+                t = owner.board[tile.getX(), tile.getY() + 1 * direction];
+                p = checkLegality == true ? owner.moveCheck(this, t) : true;
+                if (!checkLegality || (tileCheck(t) == 2 && p))
                 {
-                    direction = 1;
+                    moves.Add(t);
                 }
-                else
+                if ((team == 0 && tile.getY() == 1) || (team == 1 &&  tile.getY() == 6))
                 {
-                    direction = -1;
-                }
-
-                if (Program.game.board[tile.x, tile.y + direction].piece is null)
-                {
-                    ts.Add(Program.game.board[tile.x, tile.y + direction]);
-                    if (((tile.y == 1 && direction == 1) || (tile.y == 6 && direction == -1))
-                        && Program.game.board[tile.x, tile.y + 2 * direction].piece is null)
+                    t = owner.board[tile.getX(), tile.getY() + 2 * direction];
+                    p = checkLegality == true ? owner.moveCheck(this, t) : true;
+                    if (!checkLegality || (tileCheck(t) == 2 && p))
                     {
-                        ts.Add(Program.game.board[tile.x, tile.y + 2 * direction]);
+                        moves.Add(t);
                     }
                 }
-
-                if (tile.x - 1 >= 0)
+                if (tile.getX() + 1 < 8)
                 {
-                    if (Program.game.board[tile.x - 1, tile.y + direction].piece is not null
-                        && Program.game.board[tile.x - 1, tile.y + direction].piece!.team != team)
+                    t = owner.board[tile.getX() + 1, tile.getY() + 1 * direction];
+                    p = checkLegality == true ? owner.moveCheck(this, t) : true;
+                    if (!checkLegality || (tileCheck(t) == 1 && p))
                     {
-                        ts.Add(Program.game.board[tile.x - 1, tile.y + direction]);
+                        moves.Add(t);
                     }
                 }
-
-                if (tile.x + 1 < 8)
+                if (tile.getX() - 1 >= 0)
                 {
-                    if (Program.game.board[tile.x + 1, tile.y + direction].piece is not null
-                        && Program.game.board[tile.x + 1, tile.y + direction].piece!.team != team)
+                    t = owner.board[tile.getX() - 1, tile.getY() + 1 * direction];
+                    p = checkLegality == true ? owner.moveCheck(this, t) : true;
+                    if (!checkLegality || (tileCheck(t) == 1 && p))
                     {
-                        ts.Add(Program.game.board[tile.x + 1, tile.y + direction]);
+                        moves.Add(t);
                     }
                 }
-
                 break;
         }
-        return ts;
+        return moves;
     }
+
+    public char getType() { return type; }
+    public void setType(char type) { this.type = type; }
+
+    public Tile getTile() { return tile; }
+    public void setTile(Tile tile) { this.tile = tile; }
+
+    public int getTeam() { return team; }
 }
