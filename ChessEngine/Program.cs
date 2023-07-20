@@ -12,7 +12,7 @@ public static class Program
         }
 
         game.displayBoard();
-        Console.WriteLine("CHECKMATE!!! {0} WINS", game.turn % 2 == 0? "Black" : "White");
+        Console.WriteLine("CHECKMATE!!! {0} WINS", game.turn % 2 == 0? "BLACK" : "WHITE");
 
         Console.WriteLine("Move list:");
         game.printMoves();
