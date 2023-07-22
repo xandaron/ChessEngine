@@ -1,25 +1,19 @@
 ﻿
-using System.Runtime.ExceptionServices;
-using System.Text.RegularExpressions;
-
-namespace ChessGame
+namespace ChessEngine
 {
-    public class Game
+    public class BoardController
     {
-        private readonly string fen;
         public int turn;
         public int halfMoveCounter;
         public Tile[,] board = new Tile[8, 8];
         public List<Piece>[] pieces = new List<Piece>[] { new List<Piece>(), new List<Piece>() };
-        public List<string> moveList = new List<string>();
+        public List<string> moveList = new();
         public bool enPassant = false;
         public bool checkMate = false;
         public bool gameOver = false;
 
-        public Game(string fen)
+        public BoardController(string fen)
         {
-            this.fen = fen;
-
             for (int i = 0; i < 8; i++)
             {
                 for (int k = 0; k < 8; k++)
@@ -27,13 +21,10 @@ namespace ChessGame
                     board[i, k] = new Tile(i, k);
                 }
             }
-
-            LoadFEN();
+            LoadFEN(fen);
         }
 
-        public Game() : this("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1") { }
-
-        private void LoadFEN()
+        private void LoadFEN(string fen)
         {
             string[] fenComponents = fen.Split(" ");
             string[] rows = fenComponents[0].Split("/");
@@ -86,97 +77,6 @@ namespace ChessGame
         {
             if (gameOver) { return true; }
 
-            DisplayBoard();
-            string? input;
-            bool keepRunning = true;
-            do
-            {
-                Console.WriteLine("\nNext move:");
-                input = Console.ReadLine();
-
-                if (input is null)
-                {
-                    continue;
-                }
-
-                string pawnMove = @"^[abcdefgh][12345678]\+?$";
-                string pawnCapture = @"^[abcdefgh]x[abcdefgh][12345678]\+?$";
-                string pieceMove = @"^[KQNBR][abcdefgh12345678]?x?[abcdefgh][12345678]\+?$";
-                string check = @"\+$";
-                string capture = @"x";
-                string castle = @"^O-O(-O)?$";
-
-                string r1 = Regex.Match(input, pawnMove).Value;
-                string r2 = Regex.Match(input, pawnCapture).Value;
-                string r3 = Regex.Match(input, pieceMove).Value;
-                string r4 = Regex.Match(input, check).Value;
-                string r5 = Regex.Match(input, capture).Value;
-                string r6 = Regex.Match(input, castle).Value;
-
-                string piece;
-                string move;
-
-                if (r1 != "")
-                {
-                    piece = r1[..1];
-                    move = r1[..2];
-                }
-                else if (r2 != "")
-                {
-                    piece = r2[..1];
-                    move = r2[2..3];
-                }
-                else if (r3 != "")
-                {
-                    piece = r3[..(r3.Length - r4.Length - r5.Length - 2)];
-                    move = r3[(r3.Length - r4.Length - 2)..(r3.Length - r4.Length)];
-                }
-                else if (r6 != "")
-                {
-                    piece = "K";
-                    string side = turn % 2 == 0 ? "1" : "8";
-                    if (r6.Length == 3)
-                    {
-                        move = "g" + side;
-                    }
-                    else
-                    {
-                        move = "c" + side;
-                    }
-                }
-                else
-                {
-                    Console.WriteLine("Enter a valid move in algebraic chess notation");
-                    continue;
-                }
-
-                Tile target = board[move[0] - 'a', move[1] - '1'];
-
-                if (r1 != "" || r2 != "")
-                {
-                    foreach (Piece p in pieces[turn % 2])
-                    {
-                        if (p.GetTile().GetX() == piece[0] - 'a' && MovePiece(p, target))
-                        {
-                            keepRunning = false;
-                            break;
-                        }
-                    }
-                }
-                else
-                {
-                    foreach (Piece p in pieces[turn % 2])
-                    {
-                        if (p.GetType() == piece[0]  && (piece.Length > 1 && (p.GetTile().GetX() == piece[1] - 'a'
-                         || p.GetTile().GetY() == piece[1] - '1') || piece.Length == 1) && MovePiece(p, target))
-                        {
-                            keepRunning = false;
-                            break;
-                        }
-                    }
-                }
-            } while (keepRunning);
-
             turn++;
             halfMoveCounter++;
             checkMate = CheckMate();
@@ -197,42 +97,50 @@ namespace ChessGame
             p.SetTile(t);
             t.SetPiece(p);
 
-            bool r = CheckCheck(p.GetTeam());
+            bool r = CheckCheck(p.GetTeam(), originalPiece);
 
             p.SetTile(originalTile);
-            p.GetTile().SetPiece(p);
+            originalTile.SetPiece(p);
             t.SetPiece(originalPiece);
 
             return !r;
         }
 
-        public bool CheckCheck(int team)
+        public bool CheckCheck(int team, Piece? captured)
         {
-            List<Tile> moveList = GetMoves((team + 1) % 2, false);
-            Tile? kingTile = null;
+            List<string> moveList = GetMoves((team + 1) % 2, false);
+            string kingTile = "";
 
             foreach (Piece p in pieces[team])
             {
                 if (p.GetType() == 'K')
                 {
-                    kingTile = p.GetTile();
+                    kingTile = p.GetTile().ToString();
                     break;
                 }
             }
 
-            if (!moveList.Contains(kingTile!))
+            foreach (string move in moveList)
             {
-                return false;
+                if (captured is not null && move[..2] == captured.GetTile().ToString())
+                {
+                    continue;
+                }
+
+                if (move[2..] == kingTile)
+                {
+                    return true;
+                }
             }
-            return true;
+            return false;
         }
 
         /* kingMoves is used to decide if legal king moves should be included in the list.
          * This should always be true unless you are checking for check. 
          */
-        public List<Tile> GetMoves(int team, bool legalMoves)
+        public List<string> GetMoves(int team, bool legalMoves)
         {
-            List<Tile> moves = new();
+            List<string> moves = new();
             foreach (Piece piece in pieces[team])
             {
                 moves.AddRange(piece.GetMoves(legalMoves));
@@ -241,9 +149,19 @@ namespace ChessGame
         }
 
         // Moves the piece to the target as long as the move is legal
-        public bool MovePiece(Piece piece, Tile target)
+        public bool MovePiece(string move)
         {
-            if (!piece.GetMoves(true).Contains(target)) { return false; }
+            Piece piece = board[move[0] - 'a', move[1] - '1'].GetPiece()!;
+            Tile target = board[move[2] - 'a', move[3] - '1'];
+
+            char pawnPromotion = 'P';
+
+            if (move.Length > 4)
+            {
+                pawnPromotion = Char.ToUpper(move[4]);
+            }
+
+            if (!piece.GetMoves(true).Contains(move)) { return false; }
 
             string moveString = "";
 
@@ -252,55 +170,30 @@ namespace ChessGame
             {
                 halfMoveCounter = 0;
                 // Pawn capture character
-                if (piece.GetTile().GetX() != target.GetX())
+                if (piece.GetTile().X != target.X)
                 {
-                    moveString += (char)(piece.GetTile().GetX() + 'a');
+                    moveString += (char)(piece.GetTile().X + 'a');
                 }
 
                 // En Passant capture
-                if (target.GetPiece() == null && Math.Abs(target.GetX() - piece.GetTile().GetX()) == 1)
+                if (target.GetPiece() == null && Math.Abs(target.X - piece.GetTile().X) == 1)
                 {
                     int d = piece.GetTeam() == 0 ? -1 : 1;
-                    pieces[(turn + 1) % 2].Remove(board[target.GetX(), target.GetY() + d].GetPiece()!);
-                    board[target.GetX(), target.GetY() + d].ClearPiece();
+                    pieces[(turn + 1) % 2].Remove(board[target.X, target.Y + d].GetPiece()!);
+                    board[target.X, target.Y + d].ClearPiece();
                 }
 
                 // Pawn promotion
-                if (piece.GetTeam() == 0 && target.GetY() == 7 || piece.GetTeam() == 1 && target.GetY() == 0)
+                if (piece.GetTeam() == 0 && target.Y == 7 || piece.GetTeam() == 1 && target.Y == 0)
                 {
-                    while (true)
-                    {
-                        string? input;
-                        Console.WriteLine("Pawn promotion (Q, R, B, N):");
-                        input = Console.ReadLine();
-                        if (input == "Q" || input == "R" || input == "B" || input == "N")
-                        {
-                            piece.SetType(input[0]);
-                            break;
-                        }
-                    }
+                    piece.SetType(pawnPromotion);
                 }
             }
             else
             {
                 moveString += piece.GetType();
             }
-
-            foreach (Piece p in pieces[piece.GetTeam()])
-            {
-                if (p != piece && p.GetType() == piece.GetType() && p.GetMoves(true).Contains(target))
-                {
-                    if (p.GetTile().GetX() == piece.GetTile().GetX())
-                    {
-                        moveString += (char)(piece.GetTile().GetY() + '1');
-                    }
-                    else
-                    {
-                        moveString += (char)(piece.GetTile().GetX() + 'a');
-                    }
-                }
-            }
-
+            
             if (target.GetPiece() is not null)
             {
                 moveString += 'x';
@@ -315,30 +208,30 @@ namespace ChessGame
                 }
             }
 
-            moveString += (char)(target.GetX() + 'a');
-            moveString += (char)(target.GetY() + '1');
+            moveString += (char)(target.X + 'a');
+            moveString += (char)(target.Y + '1');
+
+            // Castle
+            if (piece.GetType() == 'K' && Math.Abs(piece.GetTile().X - target.X) == 2)
+            {
+                board[target.X == 6 ? 7 : 0, target.Y].GetPiece()!.SetTile(board[target.X == 6 ? 5 : 3, target.Y]);
+                board[target.X == 6 ? 5 : 3, target.Y].SetPiece(board[target.X == 6 ? 7 : 0, target.Y].GetPiece()!);
+                board[target.X == 6 ? 7 : 0, target.Y].ClearPiece();
+                moveString = "O-O" + (target.X == 2 ? "-O" : "");
+            }
 
             piece.GetTile().ClearPiece();
             piece.SetTile(target);
             target.SetPiece(piece);
             piece.SetMoved(true);
 
-            // Castle
-            if (piece.GetType() == 'K' && Math.Abs(piece.GetTile().GetX() - target.GetX()) == 2)
-            {
-                board[target.GetX() == 6 ? 7 : 0, target.GetY()].GetPiece()!.SetTile(board[target.GetX() == 6 ? 5 : 3, target.GetY()]);
-                board[target.GetX() == 6 ? 5 : 3, target.GetY()].SetPiece(board[target.GetX() == 6 ? 7 : 0, target.GetY()].GetPiece()!);
-                board[target.GetX() == 6 ? 7 : 0, target.GetY()].ClearPiece();
-                moveString = "O-O" + (target.GetX() == 2 ? "-O" : "");
-            }
-
-            if (CheckCheck((turn + 1) % 2))
+            if (CheckCheck((turn + 1) % 2, null))
             {
                 moveString += '+';
             }
 
             // En Passant
-            if (piece.GetType() == 'P' && Math.Abs(piece.GetTile().GetY() - target.GetY()) == 2)
+            if (piece.GetType() == 'P' && Math.Abs(piece.GetTile().Y - target.Y) == 2)
             {
                 enPassant = true;
             }
@@ -353,94 +246,11 @@ namespace ChessGame
 
         public bool CheckMate()
         {
-            if (CheckCheck(turn % 2) && GetMoves(turn % 2, true).Count == 0)
+            if (CheckCheck(turn % 2, null) && GetMoves(turn % 2, true).Count == 0)
             {
                 return true;
             }
             return false;
-        }
-
-        public void DisplayBoard()
-        {
-            Console.WriteLine();
-            for (int i = 0; i < 33; i++)
-            {
-                int mod = i % 4;
-                switch (mod)
-                {
-                    case 0:
-                        Console.Write("   ");
-                        for (int j = 0; j < 8; j++)
-                        {
-                            Console.Write("*-----");
-                        }
-                        Console.Write("* \n");
-                        break;
-                    case 1:
-                        Console.Write("   ");
-                        for (int j = 0; j < 8; j++)
-                        {
-                            Console.Write("|     ");
-                        }
-                        Console.Write("| \n");
-                        break;
-                    case 2:
-                        Console.Write(" {0} ", 8 - (i - 2) / 4);
-                        for (int j = 0; j < 8; j++)
-                        {
-                            char pieceChar = ' ';
-                            Console.Write("|  ");
-                            if (board[j, 7 - (i - 2) / 4].GetPiece() is not null)
-                            {
-                                pieceChar = board[j, 7 - (i - 2) / 4].GetPiece()!.GetType();
-
-                                if (board[j, 7 - (i - 2) / 4].GetPiece()!.GetTeam() == 0)
-                                {
-                                    Console.ForegroundColor = ConsoleColor.White;
-                                }
-                                else
-                                {
-                                    Console.ForegroundColor = ConsoleColor.Black;
-                                }
-                            }
-                            Console.Write(pieceChar + "  ");
-                            Console.ForegroundColor = ConsoleColor.Gray;
-                        }
-                        Console.Write("| \n");
-                        break;
-                    case 3:
-                        Console.Write("   ");
-                        for (int j = 0; j < 8; j++)
-                        {
-                            Console.Write("|     ");
-                        }
-                        Console.Write("| \n");
-                        break;
-                }
-            }
-            Console.Write(" ");
-            for (int i = 0; i < 8; i++)
-            {
-                Console.Write("     {0}", (char)('a' + i));
-            }
-            Console.WriteLine();
-        }
-
-        public void PrintMoves()
-        {
-            for (int i = 0; i < moveList.Count; i++)
-            {
-                Console.Write("{0} ", moveList[i]);
-                for (int j = 0; j < 6 - moveList[i].Length; j++)
-                {
-                    Console.Write(" ");
-                }
-                if (i % 2 == 1)
-                {
-                    Console.Write("\n");
-                }
-            }
-            Console.Write("\n");
         }
     }
 
@@ -456,11 +266,17 @@ namespace ChessGame
             this.y = y;
         }
 
-        public int GetX() { return x; }
-        public void SetX(int x) { this.x = x; }
+        public int X 
+        {
+            get { return x; }
+            set { x = value; }
+        }
 
-        public int GetY() { return y; }
-        public void SetY(int y) { this.y = y; }
+        public int Y
+        {
+            get { return y; }
+            set { y = value; }
+        }
 
         public Piece? GetPiece()
         {
@@ -477,18 +293,18 @@ namespace ChessGame
             piece = null;
         }
 
-        override public string ToString() => new string((char)(x + 'a'), (char)(y + '1'));
+        override public string ToString() => new string(new char[] { (char)(x + 'a'), (char)(y + '1') });
     }
 
     public class Piece
     {
-        private readonly Game owner;
+        private readonly BoardController owner;
         private char type;
         private readonly int team;
         private Tile tile;
         private bool moved;
 
-        public Piece(Game owner, char type, int team, Tile tile, bool moved)
+        public Piece(BoardController owner, char type, int team, Tile tile, bool moved)
         {
             this.owner = owner;
             this.type = type;
@@ -510,20 +326,20 @@ namespace ChessGame
             return 2;
         }
 
-        public List<Tile> GetMoves(bool checkLegality)
+        public List<string> GetMoves(bool checkLegality)
         {
-            List<Tile> moves = new();
+            List<string> moves = new(); 
             Tile t;
             int control = 0b11111111;
 
             switch (type)
             {
                 case 'K':
-                    for (int i = Math.Max(0, tile.GetX() - 1); i <= Math.Min(tile.GetX() + 1, 7); i++)
+                    for (int i = Math.Max(0, tile.X - 1); i <= Math.Min(tile.X + 1, 7); i++)
                     {
-                        for (int j = Math.Max(0, tile.GetY() - 1); j <= Math.Min(tile.GetY() + 1, 7); j++)
+                        for (int j = Math.Max(0, tile.Y - 1); j <= Math.Min(tile.Y + 1, 7); j++)
                         {
-                            if (i == tile.GetX() && j == tile.GetY())
+                            if (i == tile.X && j == tile.Y)
                             {
                                 continue;
                             }
@@ -531,31 +347,35 @@ namespace ChessGame
                             t = owner.board[i, j];
                             if (!checkLegality || TileCheck(t) != 0 && owner.MoveCheck(this, t))
                             {
-                                moves.Add(t);
+                                moves.Add(tile.ToString() + t.ToString());
                             }
                         }
                     }
 
-                    if (checkLegality && !moved && !owner.CheckCheck(team))
+                    if (checkLegality && !moved && !owner.CheckCheck(team, null))
                     {
-                        List<Tile> opponentMoves = owner.GetMoves(team == 0 ? 1 : 0, false);
+                        List<string> opponentMoves = owner.GetMoves(team == 0 ? 1 : 0, false);
+                        for (int i = 0; i < opponentMoves.Count; i++)
+                        {
+                            opponentMoves[i] = opponentMoves[i][2..];
+                        }
                         if (owner.board[0, team == 0 ? 0 : 7].GetPiece() is not null
                             && !owner.board[0, team == 0 ? 0 : 7].GetPiece()!.GetMoved()
                             && TileCheck(owner.board[3, team == 0 ? 0 : 7]) == 2
-                            && !opponentMoves.Contains(owner.board[3, team == 0 ? 0 : 7])
+                            && !opponentMoves.Contains(owner.board[3, team == 0 ? 0 : 7].ToString())
                             && TileCheck(owner.board[2, team == 0 ? 0 : 7]) == 2
-                            && !opponentMoves.Contains(owner.board[2, team == 0 ? 0 : 7]))
+                            && !opponentMoves.Contains(owner.board[2, team == 0 ? 0 : 7].ToString()))
                         {
-                            moves.Add(owner.board[2, team == 0 ? 0 : 7]);
+                            moves.Add(tile.ToString() + owner.board[2, team == 0 ? 0 : 7].ToString());
                         }
                         if (owner.board[7, team == 0 ? 0 : 7].GetPiece() is not null
                             && !owner.board[7, team == 0 ? 0 : 7].GetPiece()!.GetMoved()
                             && TileCheck(owner.board[5, team == 0 ? 0 : 7]) == 2
-                            && !opponentMoves.Contains(owner.board[5, team == 0 ? 0 : 7])
+                            && !opponentMoves.Contains(owner.board[5, team == 0 ? 0 : 7].ToString())
                             && TileCheck(owner.board[6, team == 0 ? 0 : 7]) == 2
-                            && !opponentMoves.Contains(owner.board[6, team == 0 ? 0 : 7]))
+                            && !opponentMoves.Contains(owner.board[6, team == 0 ? 0 : 7].ToString()))
                         {
-                            moves.Add(owner.board[6, team == 0 ? 0 : 7]);
+                            moves.Add(tile.ToString() + owner.board[2, team == 0 ? 0 : 7].ToString());
                         }
                     }
 
@@ -563,11 +383,11 @@ namespace ChessGame
                 case 'Q':
                     for (int i = 1; i < 7; i++)
                     {
-                        if (tile.GetX() + i < 8)
+                        if (tile.X + i < 8)
                         {
                             if ((control & 0b0001) == 0b0001)
                             {
-                                t = owner.board[tile.GetX() + i, tile.GetY()];
+                                t = owner.board[tile.X + i, tile.Y];
                                 int tc = TileCheck(t);
                                 if (tc != 2)
                                 {
@@ -575,12 +395,12 @@ namespace ChessGame
                                 }
                                 if (!checkLegality || tc != 0 && owner.MoveCheck(this, t))
                                 {
-                                    moves.Add(t);
+                                    moves.Add(tile.ToString() + t.ToString());
                                 }
                             }
-                            if (tile.GetY() + i < 8 && (control & 0b10000000) == 0b10000000)
+                            if (tile.Y + i < 8 && (control & 0b10000000) == 0b10000000)
                             {
-                                t = owner.board[tile.GetX() + i, tile.GetY() + i];
+                                t = owner.board[tile.X + i, tile.Y + i];
                                 int tc = TileCheck(t);
                                 if (tc != 2)
                                 {
@@ -588,12 +408,12 @@ namespace ChessGame
                                 }
                                 if (!checkLegality || tc != 0 && owner.MoveCheck(this, t))
                                 {
-                                    moves.Add(t);
+                                    moves.Add(tile.ToString() + t.ToString());
                                 }
                             }
-                            if (tile.GetY() - i >= 0 && (control & 0b01000000) == 0b01000000)
+                            if (tile.Y - i >= 0 && (control & 0b01000000) == 0b01000000)
                             {
-                                t = owner.board[tile.GetX() + i, tile.GetY() - i];
+                                t = owner.board[tile.X + i, tile.Y - i];
                                 int tc = TileCheck(t);
                                 if (tc != 2)
                                 {
@@ -601,15 +421,15 @@ namespace ChessGame
                                 }
                                 if (!checkLegality || tc != 0 && owner.MoveCheck(this, t))
                                 {
-                                    moves.Add(t);
+                                    moves.Add(tile.ToString() + t.ToString());
                                 }
                             }
                         }
-                        if (tile.GetX() - i >= 0)
+                        if (tile.X - i >= 0)
                         {
                             if ((control & 0b0010) == 0b0010)
                             {
-                                t = owner.board[tile.GetX() - i, tile.GetY()];
+                                t = owner.board[tile.X - i, tile.Y];
                                 int tc = TileCheck(t);
                                 if (tc != 2)
                                 {
@@ -617,12 +437,12 @@ namespace ChessGame
                                 }
                                 if (!checkLegality || tc != 0 && owner.MoveCheck(this, t))
                                 {
-                                    moves.Add(t);
+                                    moves.Add(tile.ToString() + t.ToString());
                                 }
                             }
-                            if (tile.GetY() + i < 8 && (control & 0b00100000) == 0b00100000)
+                            if (tile.Y + i < 8 && (control & 0b00100000) == 0b00100000)
                             {
-                                t = owner.board[tile.GetX() - i, tile.GetY() + i];
+                                t = owner.board[tile.X - i, tile.Y + i];
                                 int tc = TileCheck(t);
                                 if (tc != 2)
                                 {
@@ -630,12 +450,12 @@ namespace ChessGame
                                 }
                                 if (!checkLegality || tc != 0 && owner.MoveCheck(this, t))
                                 {
-                                    moves.Add(t);
+                                    moves.Add(tile.ToString() + t.ToString());
                                 }
                             }
-                            if (tile.GetY() - i >= 0 && (control & 0b00010000) == 0b00010000)
+                            if (tile.Y - i >= 0 && (control & 0b00010000) == 0b00010000)
                             {
-                                t = owner.board[tile.GetX() - i, tile.GetY() - i];
+                                t = owner.board[tile.X - i, tile.Y - i];
                                 int tc = TileCheck(t);
                                 if (tc != 2)
                                 {
@@ -643,13 +463,13 @@ namespace ChessGame
                                 }
                                 if (!checkLegality || tc != 0 && owner.MoveCheck(this, t))
                                 {
-                                    moves.Add(t);
+                                    moves.Add(tile.ToString() + t.ToString());
                                 }
                             }
                         }
-                        if (tile.GetY() + i < 8 && (control & 0b0100) == 0b0100)
+                        if (tile.Y + i < 8 && (control & 0b0100) == 0b0100)
                         {
-                            t = owner.board[tile.GetX(), tile.GetY() + i];
+                            t = owner.board[tile.X, tile.Y + i];
                             int tc = TileCheck(t);
                             if (tc != 2)
                             {
@@ -657,12 +477,12 @@ namespace ChessGame
                             }
                             if (!checkLegality || tc != 0 && owner.MoveCheck(this, t))
                             {
-                                moves.Add(t);
+                                moves.Add(tile.ToString() + t.ToString());
                             }
                         }
-                        if (tile.GetY() - i >= 0 && (control & 0b1000) == 0b1000)
+                        if (tile.Y - i >= 0 && (control & 0b1000) == 0b1000)
                         {
-                            t = owner.board[tile.GetX(), tile.GetY() - i];
+                            t = owner.board[tile.X, tile.Y - i];
                             int tc = TileCheck(t);
                             if (tc != 2)
                             {
@@ -670,17 +490,17 @@ namespace ChessGame
                             }
                             if (!checkLegality || tc != 0 && owner.MoveCheck(this, t))
                             {
-                                moves.Add(t);
+                                moves.Add(tile.ToString() + t.ToString());
                             }
                         }
                     }
                     break;
                 case 'R':
-                    for (int i = 1; i < 7; i++)
+                    for (int i = 1; i < 8; i++)
                     {
-                        if (tile.GetX() + i < 8 && (control & 0b0001) == 0b0001)
+                        if (tile.X + i < 8 && (control & 0b0001) == 0b0001)
                         {
-                            t = owner.board[tile.GetX() + i, tile.GetY()];
+                            t = owner.board[tile.X + i, tile.Y];
                             int tc = TileCheck(t);
                             if (tc != 2)
                             {
@@ -688,12 +508,12 @@ namespace ChessGame
                             }
                             if (!checkLegality || tc != 0 && owner.MoveCheck(this, t))
                             {
-                                moves.Add(t);
+                                moves.Add(tile.ToString() + t.ToString());
                             }
                         }
-                        if (tile.GetX() - i >= 0 && (control & 0b0010) == 0b0010)
+                        if (tile.X - i >= 0 && (control & 0b0010) == 0b0010)
                         {
-                            t = owner.board[tile.GetX() - i, tile.GetY()];
+                            t = owner.board[tile.X - i, tile.Y];
                             int tc = TileCheck(t);
                             if (tc != 2)
                             {
@@ -701,12 +521,12 @@ namespace ChessGame
                             }
                             if (!checkLegality || tc != 0 && owner.MoveCheck(this, t))
                             {
-                                moves.Add(t);
+                                moves.Add(tile.ToString() + t.ToString());
                             }
                         }
-                        if (tile.GetY() + i < 8 && (control & 0b0100) == 0b0100)
+                        if (tile.Y + i < 8 && (control & 0b0100) == 0b0100)
                         {
-                            t = owner.board[tile.GetX(), tile.GetY() + i];
+                            t = owner.board[tile.X, tile.Y + i];
                             int tc = TileCheck(t);
                             if (tc != 2)
                             {
@@ -714,12 +534,12 @@ namespace ChessGame
                             }
                             if (!checkLegality || tc != 0 && owner.MoveCheck(this, t))
                             {
-                                moves.Add(t);
+                                moves.Add(tile.ToString() + t.ToString());
                             }
                         }
-                        if (tile.GetY() - i >= 0 && (control & 0b1000) == 0b1000)
+                        if (tile.Y - i >= 0 && (control & 0b1000) == 0b1000)
                         {
-                            t = owner.board[tile.GetX(), tile.GetY() - i];
+                            t = owner.board[tile.X, tile.Y - i];
                             int tc = TileCheck(t);
                             if (tc != 2)
                             {
@@ -727,7 +547,7 @@ namespace ChessGame
                             }
                             if (!checkLegality || tc != 0 && owner.MoveCheck(this, t))
                             {
-                                moves.Add(t);
+                                moves.Add(tile.ToString() + t.ToString());
                             }
                         }
                     }
@@ -735,11 +555,11 @@ namespace ChessGame
                 case 'B':
                     for (int i = 1; i < 7; i++)
                     {
-                        if (tile.GetX() + i < 8)
+                        if (tile.X + i < 8)
                         {
-                            if (tile.GetY() + i < 8 && (control & 0b10000000) == 0b10000000)
+                            if (tile.Y + i < 8 && (control & 0b10000000) == 0b10000000)
                             {
-                                t = owner.board[tile.GetX() + i, tile.GetY() + i];
+                                t = owner.board[tile.X + i, tile.Y + i];
                                 int tc = TileCheck(t);
                                 if (tc != 2)
                                 {
@@ -747,12 +567,12 @@ namespace ChessGame
                                 }
                                 if (!checkLegality || tc != 0 && owner.MoveCheck(this, t))
                                 {
-                                    moves.Add(t);
+                                    moves.Add(tile.ToString() + t.ToString());
                                 }
                             }
-                            if (tile.GetY() - i >= 0 && (control & 0b01000000) == 0b01000000)
+                            if (tile.Y - i >= 0 && (control & 0b01000000) == 0b01000000)
                             {
-                                t = owner.board[tile.GetX() + i, tile.GetY() - i];
+                                t = owner.board[tile.X + i, tile.Y - i];
                                 int tc = TileCheck(t);
                                 if (tc != 2)
                                 {
@@ -760,15 +580,15 @@ namespace ChessGame
                                 }
                                 if (!checkLegality || tc != 0 && owner.MoveCheck(this, t))
                                 {
-                                    moves.Add(t);
+                                    moves.Add(tile.ToString() + t.ToString());
                                 }
                             }
                         }
-                        if (tile.GetX() - i >= 0)
+                        if (tile.X - i >= 0)
                         {
-                            if (tile.GetY() + i < 8 && (control & 0b00100000) == 0b00100000)
+                            if (tile.Y + i < 8 && (control & 0b00100000) == 0b00100000)
                             {
-                                t = owner.board[tile.GetX() - i, tile.GetY() + i];
+                                t = owner.board[tile.X - i, tile.Y + i];
                                 int tc = TileCheck(t);
                                 if (tc != 2)
                                 {
@@ -776,12 +596,12 @@ namespace ChessGame
                                 }
                                 if (!checkLegality || tc != 0 && owner.MoveCheck(this, t))
                                 {
-                                    moves.Add(t);
+                                    moves.Add(tile.ToString() + t.ToString());
                                 }
                             }
-                            if (tile.GetY() - i >= 0 && (control & 0b00010000) == 0b00010000)
+                            if (tile.Y - i >= 0 && (control & 0b00010000) == 0b00010000)
                             {
-                                t = owner.board[tile.GetX() - i, tile.GetY() - i];
+                                t = owner.board[tile.X - i, tile.Y - i];
                                 int tc = TileCheck(t);
                                 if (tc != 2)
                                 {
@@ -789,125 +609,133 @@ namespace ChessGame
                                 }
                                 if (!checkLegality || tc != 0 && owner.MoveCheck(this, t))
                                 {
-                                    moves.Add(t);
+                                    moves.Add(tile.ToString() + t.ToString());
                                 }
                             }
                         }
                     }
                     break;
                 case 'N':
-                    if (tile.GetX() + 2 < 8)
+                    if (tile.X + 2 < 8)
                     {
-                        if (tile.GetY() + 1 < 8)
+                        if (tile.Y + 1 < 8)
                         {
-                            t = owner.board[tile.GetX() + 2, tile.GetY() + 1];
+                            t = owner.board[tile.X + 2, tile.Y + 1];
                             if (!checkLegality || TileCheck(t) != 0 && owner.MoveCheck(this, t))
                             {
-                                moves.Add(t);
+                                moves.Add(tile.ToString() + t.ToString());
                             }
                         }
-                        if (tile.GetY() - 1 >= 0)
+                        if (tile.Y - 1 >= 0)
                         {
-                            t = owner.board[tile.GetX() + 2, tile.GetY() - 1];
+                            t = owner.board[tile.X + 2, tile.Y - 1];
                             if (!checkLegality || TileCheck(t) != 0 && owner.MoveCheck(this, t))
                             {
-                                moves.Add(t);
+                                moves.Add(tile.ToString() + t.ToString());
                             }
                         }
                     }
-                    if (tile.GetX() - 2 >= 0)
+                    if (tile.X - 2 >= 0)
                     {
-                        if (tile.GetY() + 1 < 8)
+                        if (tile.Y + 1 < 8)
                         {
-                            t = owner.board[tile.GetX() - 2, tile.GetY() + 1];
+                            t = owner.board[tile.X - 2, tile.Y + 1];
                             if (!checkLegality || TileCheck(t) != 0 && owner.MoveCheck(this, t))
                             {
-                                moves.Add(t);
+                                moves.Add(tile.ToString() + t.ToString());
                             }
                         }
-                        if (tile.GetY() - 1 >= 0)
+                        if (tile.Y - 1 >= 0)
                         {
-                            t = owner.board[tile.GetX() - 2, tile.GetY() - 1];
+                            t = owner.board[tile.X - 2, tile.Y - 1];
                             if (!checkLegality || TileCheck(t) != 0 && owner.MoveCheck(this, t))
                             {
-                                moves.Add(t);
+                                moves.Add(tile.ToString() + t.ToString());
                             }
                         }
                     }
-                    if (tile.GetX() + 1 < 8)
+                    if (tile.X + 1 < 8)
                     {
-                        if (tile.GetY() + 2 < 8)
+                        if (tile.Y + 2 < 8)
                         {
-                            t = owner.board[tile.GetX() + 1, tile.GetY() + 2];
+                            t = owner.board[tile.X + 1, tile.Y + 2];
                             if (!checkLegality || TileCheck(t) != 0 && owner.MoveCheck(this, t))
                             {
-                                moves.Add(t);
+                                moves.Add(tile.ToString() + t.ToString());
                             }
                         }
-                        if (tile.GetY() - 2 >= 0)
+                        if (tile.Y - 2 >= 0)
                         {
-                            t = owner.board[tile.GetX() + 1, tile.GetY() - 2];
+                            t = owner.board[tile.X + 1, tile.Y - 2];
                             if (!checkLegality || TileCheck(t) != 0 && owner.MoveCheck(this, t))
                             {
-                                moves.Add(t);
+                                moves.Add(tile.ToString() + t.ToString());
                             }
                         }
                     }
-                    if (tile.GetX() - 1 < 8)
+                    if (tile.X - 1 >= 0)
                     {
-                        if (tile.GetY() + 2 < 8)
+                        if (tile.Y + 2 < 8)
                         {
-                            t = owner.board[tile.GetX() - 1, tile.GetY() + 2];
+                            t = owner.board[tile.X - 1, tile.Y + 2];
                             if (!checkLegality || TileCheck(t) != 0 && owner.MoveCheck(this, t))
                             {
-                                moves.Add(t);
+                                moves.Add(tile.ToString() + t.ToString());
                             }
                         }
-                        if (tile.GetY() - 2 >= 0)
+                        if (tile.Y - 2 >= 0)
                         {
-                            t = owner.board[tile.GetX() - 1, tile.GetY() - 2];
+                            t = owner.board[tile.X - 1, tile.Y - 2];
                             if (!checkLegality || TileCheck(t) != 0 && owner.MoveCheck(this, t))
                             {
-                                moves.Add(t);
+                                moves.Add(tile.ToString() + t.ToString());
                             }
                         }
                     }
                     break;
                 case 'P':
                     int direction = team == 0 ? 1 : -1;
-                    t = owner.board[tile.GetX(), tile.GetY() + direction];
-                    if (checkLegality && TileCheck(t) == 2 && owner.MoveCheck(this, t))
+                    if (tile.Y + direction >= 0 && tile.Y + direction < 8)
                     {
-                        moves.Add(t);
-                    }
-                    if (checkLegality && !moved)
-                    {
-                        t = owner.board[tile.GetX(), tile.GetY() + 2 * direction];
-                        if (TileCheck(t) == 2 && owner.MoveCheck(this, t))
+                        t = owner.board[tile.X, tile.Y + direction];
+                        if (checkLegality && TileCheck(t) == 2 && owner.MoveCheck(this, t))
                         {
-                            moves.Add(t);
+                            string ms = tile.ToString() + t.ToString();
+                            if (t.Y == 0 || t.Y == 7)
+                            {
+                                ms += 'q';
+                            }
+                            moves.Add(ms);
+                            if (!moved)
+                            {
+                                t = owner.board[tile.X, tile.Y + 2 * direction];
+                                if (TileCheck(t) == 2 && owner.MoveCheck(this, t))
+                                {
+                                    moves.Add(tile.ToString() + t.ToString());
+                                }
+                            }
                         }
-                    }
 
-                    if (tile.GetX() + 1 < 8)
-                    {
-                        t = owner.board[tile.GetX() + 1, tile.GetY() + direction];
-                        if (!checkLegality || owner.MoveCheck(this, t) && (TileCheck(t) == 1
-                        || owner.enPassant && owner.moveList[^1][0] - 'a' - 1 == tile.GetX()))
+                        if (tile.X + 1 < 8)
                         {
-                            moves.Add(t);
+                            t = owner.board[tile.X + 1, tile.Y + direction];
+                            if (!checkLegality || owner.MoveCheck(this, t) && (TileCheck(t) == 1
+                            || owner.enPassant && owner.moveList[^1][0] - 'a' - 1 == tile.X))
+                            {
+                                moves.Add(tile.ToString() + t.ToString());
+                            }
+                        }
+                        if (tile.X - 1 >= 0)
+                        {
+                            t = owner.board[tile.X - 1, tile.Y + direction];
+                            if (!checkLegality || owner.MoveCheck(this, t) && (TileCheck(t) == 1
+                            || owner.enPassant && owner.moveList[^1][0] - 'a' + 1 == tile.X))
+                            {
+                                moves.Add(tile.ToString() + t.ToString());
+                            }
                         }
                     }
-                    if (tile.GetX() - 1 >= 0)
-                    {
-                        t = owner.board[tile.GetX() - 1, tile.GetY() + direction];
-                        if (!checkLegality || owner.MoveCheck(this, t) && (TileCheck(t) == 1
-                        || owner.enPassant && owner.moveList[^1][0] - 'a' + 1 == tile.GetX()))
-                        {
-                            moves.Add(t);
-                        }
-                    }
-                break;
+                    break;
             }
             return moves;
         }
