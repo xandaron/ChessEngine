@@ -1,4 +1,6 @@
 ﻿
+using System.Reflection.Metadata.Ecma335;
+
 namespace ChessEngine
 {
     public static class EngineController
@@ -19,8 +21,23 @@ namespace ChessEngine
                     case "--rng":
                         engine = new EngineRNG();
                         break;
+                    default:
+                        throw new Exception("Invalid engine parameter");
                 }
             }
+            var watch = new System.Diagnostics.Stopwatch();
+
+            /*watch.Start();
+            watch.Stop();
+            var w1 = watch.ElapsedTicks;
+            watch.Reset();
+            watch.Start();
+            watch.Stop();
+            var w2 = watch.ElapsedTicks;
+            
+            Console.WriteLine("{0}, {1}", t1, w1);
+            Console.WriteLine("{0}, {1}", t2, w2);*/
+
 
             Thread uciThreadRead = new(UCIController.ReadLoop);
             Thread uciThreadWrite = new(UCIController.WriteLoop);
@@ -71,8 +88,8 @@ namespace ChessEngine
 
         public void MovePiece(string move)
         {
-            board.MovePiece(move);
-            board.Update();
+            /*board.MovePiece(move);
+            board.Update();*/
         }
 
         public string Name
@@ -106,6 +123,11 @@ namespace ChessEngine
             searchFinished = false;
             currentBestMove = "";
         }
+
+        public BoardController GetBoard()
+        {
+            return board;
+        }
     }
 
     public class EngineRNG : Engine
@@ -118,7 +140,7 @@ namespace ChessEngine
 
         public override void Update(int state)
         {
-            if (state == 2)
+            /*if (state == 2)
             {
                 List<string> moves = board.GetMoves(board.turn % 2, true);
                 int index = random.Next(moves.Count);
@@ -127,7 +149,7 @@ namespace ChessEngine
                 board.Update();
                 currentBestMove = move;
                 searchFinished = true;
-            }
+            }*/
         }
     }
 }

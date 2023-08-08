@@ -1,601 +1,400 @@
 ﻿
-using System.Runtime.CompilerServices;
-
 namespace ChessEngine
 {
     public class BoardController
     {
-        public int turn;
-        public int halfMoveCounter;
-        private Tile[,] board = new Tile[8, 8];
-        public List<Piece>[] pieces = new List<Piece>[] { new List<Piece>(), new List<Piece>() };
-        public bool enPassant = false;
-        public string passant = "";
-        public bool checkMate = false;
-        public bool gameOver = false;
+        // A 0 is an empty space where as a 1 is an occupied space
+        ulong pieceBoard = 0;
+        ulong whiteMask = 0;
+        ulong blackMask = 0;
+        // Keeps track of the different piece types for both black and white.
+        ulong kingMask = 0;
+        ulong queenMask = 0;
+        ulong rookMask = 0;
+        ulong bishopMask = 0;
+        ulong knightMask = 0;
+        ulong pawnMask = 0;
+
+        int turn = 0;
+        int move = 1;
+        int halfMoveTimer = 0;
+
+        ulong enPassant = 0;
+        ulong castle = 0;
 
         public BoardController(string fen)
         {
-            for (int i = 0; i < 8; i++)
-            {
-                for (int k = 0; k < 8; k++)
-                {
-                    board[i, k] = new Tile(i, k);
-                }
-            }
-            LoadFEN(fen);
+            LoadFen(fen);
         }
 
-        private void LoadFEN(string fen)
+        public List<string> GetLegalMoves(ulong pieces)
         {
-            string[] fenComponents = fen.Split(" ");
-            string[] rows = fenComponents[0].Split("/");
-            int i = 0;
-            foreach (string row in rows)
+            List<string> legalMoves = new();
+            ulong oPieces = pieceBoard ^ pieces;
+            ulong oAttacks = GetAttacks(oPieces);
+            ulong checkPieces = GetAttacked(pieces & kingMask);
+            int numberOfChecks = (int)ulong.PopCount(checkPieces);
+            ulong moves;
+
+            // Legal king moves
+            moves = GetAttacks(pieces & kingMask) & ~(pieces | oAttacks);
+            while (moves > 0)
             {
-                foreach (char c in row)
+                ulong move = (ulong)1 << (int)ulong.TrailingZeroCount(moves);
+                legalMoves.Add(BinaryToString(pieces & kingMask) + BinaryToString(move));
+                moves ^= move;
+            }
+
+            // If checked once then block/capture the checking piece
+            if (numberOfChecks == 1)
+            {
+                ulong stopCheck = checkPieces | (GetAttacks(checkPieces) & QueenAttacks(pieces & kingMask));
+                pieces ^= PinnedPieces(pieces);
+                while (pieces != 0)
                 {
-                    if (c - '0' >= 1 && c - '0' <= 8)
+                    ulong piece = (ulong)1 << (int)ulong.LeadingZeroCount(pieces);
+                    moves = (stopCheck & (GetMoves(piece))) | (PawnAttacks(piece & pawnMask) & checkPieces);
+                    while (moves != 0)
                     {
-                        i += c - '0';
-                        continue;
+                        ulong move = (ulong)1 << (int)ulong.LeadingZeroCount(moves);
+                        legalMoves.Add(BinaryToString(piece) + BinaryToString(move));
+                        moves ^= move;
                     }
-                    int t = char.IsUpper(c) ? 1 : -1;
-                    bool m = char.ToUpper(c) != 'K' && (char.ToUpper(c) != 'P' || 7 - (i / 8) != (t == 1 ? 1 : 6));
-                    Piece p = new Piece(this, char.ToUpper(c), t, board[i % 8, 7 - (i / 8)], m);
-                    pieces[t].Add(p);
-                    board[i % 8, 7 - (i / 8)].SetPiece(p);
-                    i++;
+                    pieces ^= piece;
                 }
             }
 
-            turn = (int.Parse(fenComponents[5]) - 1) * 2 + (fenComponents[1] == "w" ? 0 : 1);
-            halfMoveCounter = int.Parse(fenComponents[4]);
-            
-            if (fenComponents[2] != "-")
+            // If not in check then add other legal piece moves
+            if (numberOfChecks == 0)
             {
-                foreach (char c in fenComponents[2])
-                {
-                    Piece? p = board[char.ToUpper(c) == 'K' ? 7 : 0, char.IsUpper(c) ? 0 : 7].GetPiece();
-                    if (p is not null && p.GetType() == 'R')
-                    {
-                        p.SetMoved(false);
-                    }
-                }
+
             }
 
-            if (fenComponents[3] != "-")
-            {
-                enPassant = true;
-                passant = fenComponents[3];
-            }
+            return legalMoves;
         }
 
-        public bool Update()
+        private ulong PinnedPieces(ulong pieces)
         {
-            if (gameOver) { return true; }
-
-            turn++;
-            halfMoveCounter++;
-            checkMate = CheckMate();
-            gameOver = checkMate;
-
-            if ((GetMoves(turn % 2, true, null).Count == 0 || halfMoveCounter >= 100) && !checkMate) { gameOver = true; }
-
-            return gameOver;
-        }
-
-        public bool LegalMove(string move)
-        {
-            Tile oTile = GetTile(move[..2]);
-            Tile tTile = GetTile(move[2..4]);
-
-            if (oTile.GetPiece() is null)
+            ulong pinnedPieces = 0;
+            while (pieces != 0)
             {
-                throw new Exception("No piece found at " + oTile.ToString());
+                ulong piece = (ulong)1 << (int)ulong.LeadingZeroCount(pieces);
+                pinnedPieces |= Pinned(piece);
+                pieces ^= piece;
             }
-
-            if (tTile.GetPiece() is not null && tTile.GetPiece()!.GetTeam() == oTile.GetPiece()!.GetTeam())
-            {
-                return false;
-            }
-
-            if (oTile.GetPiece()!.GetType() == 'P' && oTile.X != tTile.X && tTile.GetPiece() is null)
-            {
-                return false;
-            }
-
-            return false;
+            return pinnedPieces;
         }
 
-        public bool IsCheck(int team)
-        {
-            ulong kingTile = 0b0;
-            foreach (Piece piece in pieces[team == 1 ? 0 : 1])
-            {
-                if (piece.GetType() == 'K')
-                {
-                    kingTile = piece.GetTile().ToBinary();
-                }
-            }
-
-            if ((GetControlledTiles(team) & kingTile) == kingTile)
-            {
-                return true;
-            }
-            return false;
-        }
-
-        public bool CheckMate()
-        {
-            if (IsCheck() && GetLegalMoves(turn % 2).Count == 0)
-            {
-                return true;
-            }
-            return false;
-        }
-
-        public List<string> GetLegalMoves(int team)
-        {
-            List<string> moves = new();
-            foreach (Piece piece in pieces[team == 1 ? 0 : 1])
-            {
-                ulong pieceMoves = piece.GetMoves();
-                for (int i = 63; i >= 0; i--)
-                {
-                    ulong check = (ulong)0b1 << i;
-                    if (pieceMoves.CompareTo(check) < 0)
-                    {
-                        continue;
-                    }
-
-                    pieceMoves -= check;
-                    moves.Add(piece.GetTile().ToString() + Tile.BinaryToString(check));
-
-                    if (pieceMoves == 0) { break; }
-                }
-            }
-            return moves;
-        }
-
-        public ulong GetControlledTiles(int team)
-        {
-            ulong controlled = 0b0;
-            foreach (Piece piece in pieces[team == 1 ? 0 : 1])
-            {
-                controlled |= piece.ControledTiles();
-            }
-            return controlled;
-        }
-        
-        public List<Piece> GetRooks(int team)
-        {
-            List<Piece> rooks = new();
-            foreach (Piece piece in pieces[team == 1 ? 0 : 1])
-            {
-                if (piece.GetType() == 'R')
-                {
-                    rooks.Add(piece);
-                }
-            }
-            return rooks;
-        }
-
-        public Tile GetTile(ulong l) { return board[l % 8, l / 8]; }
-        public Tile GetTile(string s) { return board[s[0] - 'a', s[1] - '1']; }
-        public Tile GetTile(int x, int y) { return board[x, y]; }
-    }
-
-    public class Tile
-    {
-        private int x;
-        private int y;
-        private Piece? piece = null;
-
-        public Tile(int x, int y)
-        {
-            this.x = x;
-            this.y = y;
-        }
-
-        public int X
-        {
-            get { return x; }
-            set { x = value; }
-        }
-
-        public int Y
-        {
-            get { return y; }
-            set { y = value; }
-        }
-
-        public Piece? GetPiece()
+        private ulong Pinned(ulong piece)
         {
             return piece;
         }
 
-        public void SetPiece(Piece? piece)
+        private ulong GetAttacked(ulong tile)
         {
-            this.piece = piece;
-        }
+            ulong attacks = 0;
+            ulong pieces = pieceBoard;
 
-        public void ClearPiece()
-        {
-            piece = null;
-        }
-
-        public ulong ToBinary() => (ulong)0b1 << x + 8 * y;
-
-        override public string ToString() => new string(new char[] { (char)(x + 'a'), (char)(y + '1') });
-
-        public static ulong StringToBinary(string s)
-        {
-            return (ulong)0b1 << (s[0] - 'a') + 8 * (s[1] - '1');
-        }
-
-        public static string BinaryToString(ulong l)
-        {
-            return new string(new char[] { (char)((l % 8) + 'a'), (char)((l / 8) + '1') });
-        }
-    }
-
-    public class Piece
-    {
-        private readonly BoardController owner;
-        private char type;
-        // White 1 Black -1
-        private readonly int team;
-        private Tile tile;
-        private bool moved;
-
-        public Piece(BoardController owner, char type, int team, Tile tile, bool moved)
-        {
-            this.owner = owner;
-            this.type = type;
-            this.team = team;
-            this.tile = tile;
-            this.moved = moved;
-        }
-
-        public ulong GetMoves()
-        {
-            ulong moves = ControledTiles();
-            ulong temp = moves;
-
-            for (int i = 63; i >= 0; i--) 
+            while (pieces != 0)
             {
-                ulong check = (ulong)0b1 << i;
-                if (temp.CompareTo(check) < 0)
+                ulong check = (ulong)1 << (int)ulong.TrailingZeroCount(pieces);
+                if ((GetAttacks(check) & tile) != 0)
                 {
-                    continue;
+                    attacks |= check;
                 }
-
-                temp -= check;
-                if (!owner.LegalMove(tile.ToString() + Tile.BinaryToString(check)))
-                {
-                    moves -= check;
-                }
-
-                if (temp == 0) { break; }
+                pieces ^= check;
             }
 
-            if (type == 'P' && owner.LegalMove(tile.ToString() + owner.GetTile(tile.X, tile.Y + 1).ToString()))
-            {
-                moves |= owner.GetTile(tile.X, tile.Y + 1).ToBinary();
-                if (!moved && owner.LegalMove(tile.ToString() + owner.GetTile(tile.X, tile.Y + 2).ToString())) 
-                {
-                    moves |= owner.GetTile(tile.X, tile.Y + 2).ToBinary();
-                }
-            }
-            else if (type == 'K' && !moved)
-            {
-                List<Piece> rooks = owner.GetRooks(team);
-                foreach (Piece rook in rooks)
-                {
-                    if (!rook.moved && (owner.GetTile(tile.X + 1, tile.Y).GetPiece() is null && owner.GetTile(tile.X + 2, tile.Y).GetPiece() is null)
-                        || (owner.GetTile(tile.X - 1, tile.Y).GetPiece() is null && owner.GetTile(tile.X - 2, tile.Y).GetPiece() is null
-                        && owner.GetTile(tile.X - 3, tile.Y).GetPiece() is null))
-                    {
-                        moves |= owner.GetTile(tile.X + 2 * (rook.GetTile().X - tile.X > 0 ? 1 : -1), tile.Y).ToBinary();
-                    }
-                }
-            }
+            return attacks;
+        }
 
+        public ulong GetMoves(ulong pieces)
+        {
+            ulong attacks = 0;
+            attacks |= PawnPushes(pieces & pawnMask);
+            attacks |= KnightAttacks(pieces & knightMask);
+            attacks |= BishopAttacks(pieces & bishopMask);
+            attacks |= RookAttacks(pieces & rookMask);
+            attacks |= QueenAttacks(pieces & queenMask);
+            attacks |= KingAttacks(pieces & kingMask);
+            return attacks;
+        }
+
+        public ulong GetAttacks(ulong pieces)
+        {
+            ulong attacks = 0;
+            attacks |= PawnAttacks(pieces & pawnMask);
+            attacks |= KnightAttacks(pieces & knightMask);
+            attacks |= BishopAttacks(pieces & bishopMask);
+            attacks |= RookAttacks(pieces & rookMask);
+            attacks |= QueenAttacks(pieces & queenMask);
+            attacks |= KingAttacks(pieces & kingMask);
+            return attacks;
+        }
+
+        private ulong PawnPushes(ulong pieces)
+        {
+            ulong moves = 0;
+            if ((pieces & whiteMask) != 0)
+            {
+                moves |= (pieces << 8) & ~pieceBoard;
+                moves |= ((moves & 0x0000000000FF0000) << 8) & ~pieceBoard;
+            }
+            else if ((pieces & blackMask) != 0)
+            {
+                moves |= (pieces >> 8) & ~pieceBoard;
+                moves |= ((moves & 0x0000FF0000000000) >> 8) & ~pieceBoard;
+            }
             return moves;
         }
 
-        public ulong ControledTiles()
+        private ulong PawnAttacks(ulong pawns)
         {
-            ulong pieceControl = 0b0;
-            Tile t;
-            int control = 0b11111111;
-
-            switch (type)
-            {
-                case 'K':
-                    for (int i = Math.Max(0, tile.X - 1); i <= Math.Min(tile.X + 1, 7); i++)
-                    {
-                        for (int j = Math.Max(0, tile.Y - 1); j <= Math.Min(tile.Y + 1, 7); j++)
-                        {
-                            if (i == tile.X && j == tile.Y)
-                            {
-                                continue;
-                            }
-                            ulong k = (ulong) 0b1 << (tile.X + i + 8 * (tile.Y + j));
-                            pieceControl |= k;
-                        }
-                    }
-                    break;
-                case 'Q':
-                    for (int i = 1; i < 7; i++)
-                    {
-                        if (tile.X + i < 8)
-                        {
-                            if ((control & 0b0001) == 0b0001)
-                            {
-                                t = owner.board[tile.X + i, tile.Y];
-                                int tc = TileCheck(t);
-                                if (tc != 2)
-                                {
-                                    control -= 0b0001;
-                                }
-                                pieceControl |= t.ToBinary();
-                            }
-                            if (tile.Y + i < 8 && (control & 0b10000000) == 0b10000000)
-                            {
-                                t = owner.board[tile.X + i, tile.Y + i];
-                                int tc = TileCheck(t);
-                                if (tc != 2)
-                                {
-                                    control -= 0b10000000;
-                                }
-                                pieceControl |= t.ToBinary();
-                            }
-                            if (tile.Y - i >= 0 && (control & 0b01000000) == 0b01000000)
-                            {
-                                t = owner.board[tile.X + i, tile.Y - i];
-                                int tc = TileCheck(t);
-                                if (tc != 2)
-                                {
-                                    control -= 0b01000000;
-                                }
-                                pieceControl |= t.ToBinary();
-                            }
-                        }
-                        if (tile.X - i >= 0)
-                        {
-                            if ((control & 0b0010) == 0b0010)
-                            {
-                                t = owner.board[tile.X - i, tile.Y];
-                                int tc = TileCheck(t);
-                                if (tc != 2)
-                                {
-                                    control -= 0b0010;
-                                }
-                                pieceControl |= t.ToBinary();
-                            }
-                            if (tile.Y + i < 8 && (control & 0b00100000) == 0b00100000)
-                            {
-                                t = owner.board[tile.X - i, tile.Y + i];
-                                int tc = TileCheck(t);
-                                if (tc != 2)
-                                {
-                                    control -= 0b00100000;
-                                }
-                                pieceControl |= t.ToBinary();
-                            }
-                            if (tile.Y - i >= 0 && (control & 0b00010000) == 0b00010000)
-                            {
-                                t = owner.board[tile.X - i, tile.Y - i];
-                                int tc = TileCheck(t);
-                                if (tc != 2)
-                                {
-                                    control -= 0b00010000;
-                                }
-                                pieceControl |= t.ToBinary();
-                            }
-                        }
-                        if (tile.Y + i < 8 && (control & 0b0100) == 0b0100)
-                        {
-                            t = owner.board[tile.X, tile.Y + i];
-                            int tc = TileCheck(t);
-                            if (tc != 2)
-                            {
-                                control -= 0b0100;
-                            }
-                            pieceControl |= t.ToBinary();
-                        }
-                        if (tile.Y - i >= 0 && (control & 0b1000) == 0b1000)
-                        {
-                            t = owner.board[tile.X, tile.Y - i];
-                            int tc = TileCheck(t);
-                            if (tc != 2)
-                            {
-                                control -= 0b1000;
-                            }
-                            pieceControl |= t.ToBinary();
-                        }
-                    }
-                    break;
-                case 'R':
-                    for (int i = 1; i < 8; i++)
-                    {
-                        if (tile.X + i < 8 && (control & 0b0001) == 0b0001)
-                        {
-                            t = owner.board[tile.X + i, tile.Y];
-                            int tc = TileCheck(t);
-                            if (tc != 2)
-                            {
-                                control -= 0b0001;
-                            }
-                            pieceControl |= t.ToBinary();
-                        }
-                        if (tile.X - i >= 0 && (control & 0b0010) == 0b0010)
-                        {
-                            t = owner.board[tile.X - i, tile.Y];
-                            int tc = TileCheck(t);
-                            if (tc != 2)
-                            {
-                                control -= 0b0010;
-                            }
-                            pieceControl |= t.ToBinary();
-                        }
-                        if (tile.Y + i < 8 && (control & 0b0100) == 0b0100)
-                        {
-                            t = owner.board[tile.X, tile.Y + i];
-                            int tc = TileCheck(t);
-                            if (tc != 2)
-                            {
-                                control -= 0b0100;
-                            }
-                            pieceControl |= t.ToBinary();
-                        }
-                        if (tile.Y - i >= 0 && (control & 0b1000) == 0b1000)
-                        {
-                            t = owner.board[tile.X, tile.Y - i];
-                            int tc = TileCheck(t);
-                            if (tc != 2)
-                            {
-                                control -= 0b1000;
-                            }
-                            pieceControl |= t.ToBinary();
-                        }
-                    }
-                    break;
-                case 'B':
-                    for (int i = 1; i < 7; i++)
-                    {
-                        if (tile.X + i < 8)
-                        {
-                            if (tile.Y + i < 8 && (control & 0b10000000) == 0b10000000)
-                            {
-                                t = owner.board[tile.X + i, tile.Y + i];
-                                int tc = TileCheck(t);
-                                if (tc != 2)
-                                {
-                                    control -= 0b10000000;
-                                }
-                                pieceControl |= t.ToBinary();
-                            }
-                            if (tile.Y - i >= 0 && (control & 0b01000000) == 0b01000000)
-                            {
-                                t = owner.board[tile.X + i, tile.Y - i];
-                                int tc = TileCheck(t);
-                                if (tc != 2)
-                                {
-                                    control -= 0b01000000;
-                                }
-                                pieceControl |= t.ToBinary();
-                            }
-                        }
-                        if (tile.X - i >= 0)
-                        {
-                            if (tile.Y + i < 8 && (control & 0b00100000) == 0b00100000)
-                            {
-                                t = owner.board[tile.X - i, tile.Y + i];
-                                int tc = TileCheck(t);
-                                if (tc != 2)
-                                {
-                                    control -= 0b00100000;
-                                }
-                                pieceControl |= t.ToBinary();
-                            }
-                            if (tile.Y - i >= 0 && (control & 0b00010000) == 0b00010000)
-                            {
-                                t = owner.board[tile.X - i, tile.Y - i];
-                                int tc = TileCheck(t);
-                                if (tc != 2)
-                                {
-                                    control -= 0b00010000;
-                                }
-                                pieceControl |= t.ToBinary();
-                            }
-                        }
-                    }
-                    break;
-                case 'N':
-                    if (tile.X + 2 < 8)
-                    {
-                        if (tile.Y + 1 < 8)
-                        {
-                            t = owner.board[tile.X + 2, tile.Y + 1];
-                            pieceControl |= t.ToBinary();
-                        }
-                        if (tile.Y - 1 >= 0)
-                        {
-                            t = owner.board[tile.X + 2, tile.Y - 1];
-                            pieceControl |= t.ToBinary();
-                        }
-                    }
-                    if (tile.X - 2 >= 0)
-                    {
-                        if (tile.Y + 1 < 8)
-                        {
-                            t = owner.board[tile.X - 2, tile.Y + 1];
-                            pieceControl |= t.ToBinary();
-                        }
-                        if (tile.Y - 1 >= 0)
-                        {
-                            t = owner.board[tile.X - 2, tile.Y - 1];
-                            pieceControl |= t.ToBinary();
-                        }
-                    }
-                    if (tile.X + 1 < 8)
-                    {
-                        if (tile.Y + 2 < 8)
-                        {
-                            t = owner.board[tile.X + 1, tile.Y + 2];
-                            pieceControl |= t.ToBinary();
-                        }
-                        if (tile.Y - 2 >= 0)
-                        {
-                            t = owner.board[tile.X + 1, tile.Y - 2];
-                            pieceControl |= t.ToBinary();
-                        }
-                    }
-                    if (tile.X - 1 >= 0)
-                    {
-                        if (tile.Y + 2 < 8)
-                        {
-                            t = owner.board[tile.X - 1, tile.Y + 2];
-                            pieceControl |= t.ToBinary();
-                        }
-                        if (tile.Y - 2 >= 0)
-                        {
-                            t = owner.board[tile.X - 1, tile.Y - 2];
-                            pieceControl |= t.ToBinary();
-                        }
-                    }
-                    break;
-                case 'P':
-                    if (tile.Y + team >= 0 && tile.Y + team < 8)
-                    {
-                        if (tile.X + 1 < 8)
-                        {
-                            t = owner.board[tile.X + 1, tile.Y + team];
-                            pieceControl |= t.ToBinary();
-                        }
-                        if (tile.X - 1 >= 0)
-                        {
-                            t = owner.board[tile.X - 1, tile.Y + team];
-                            pieceControl |= t.ToBinary();
-                        }
-                    }
-                    break;
-            }
-            return pieceControl;
+            ulong attacks = 0;
+            // White pawns
+            attacks |= (pawns & whiteMask & 0x007F7F7F7F7F7F7F) << 9;
+            attacks |= (pawns & whiteMask & 0x00FEFEFEFEFEFEFE) << 7;
+            // Black pawns
+            attacks |= (pawns & blackMask & 0xFEFEFEFEFEFEFE00) >> 9;
+            attacks |= (pawns & blackMask & 0xF7F7F7F7F7F7F700) >> 7;
+            return attacks;
         }
 
-        public new char GetType() { return type; }
-        public void SetType(char type) { this.type = type; }
+        // Source: https://www.chessprogramming.org/Knight_Pattern
+        private ulong KnightAttacks(ulong knights)
+        {
+            ulong l1 = (knights >> 1) & 0x7f7f7f7f7f7f7f7f;
+            ulong l2 = (knights >> 2) & 0x3f3f3f3f3f3f3f3f;
+            ulong r1 = (knights << 1) & 0xfefefefefefefefe;
+            ulong r2 = (knights << 2) & 0xfcfcfcfcfcfcfcfc;
+            ulong h1 = l1 | r1;
+            ulong h2 = l2 | r2;
+            return (h1 << 16) | (h1 >> 16) | (h2 << 8) | (h2 >> 8);
+        }
 
-        public Tile GetTile() { return tile!; }
-        public void SetTile(Tile tile) { this.tile = tile; }
+        private ulong BishopAttacks(ulong bishops)
+        {
+            ulong xIncyInc = 0;
+            ulong xIncyDec = 0;
+            ulong xDecyInc = 0;
+            ulong xDecyDec = 0;
+            // x++, y++
+            xIncyInc |= (bishops & 0x007F7F7F7F7F7F7F) << 9;
+            // x--, y++
+            xDecyInc |= (bishops & 0x00FEFEFEFEFEFEFE) << 7;
+            // x++. y--
+            xIncyDec |= (bishops & 0x7F7F7F7F7F7F7F00) >> 7;
+            // x--, y--
+            xDecyDec |= (bishops & 0xEFEFEFEFEFEFEF00) >> 9;
 
-        public int GetTeam() { return team; }
+            ulong mask = ~pieceBoard;
+            for (int i = 2; i <= 7; i++)
+            {
+                xIncyInc |= (xIncyInc & mask & 0x007F7F7F7F7F7F7F) << (9 * i);
+                xDecyInc |= (xDecyInc & mask & 0x00FEFEFEFEFEFEFE) << (7 * i);
+                xIncyDec |= (xIncyDec & mask & 0x7F7F7F7F7F7F7F00) >> (7 * i);
+                xDecyDec |= (xDecyDec & mask & 0xEFEFEFEFEFEFEF00) >> (9 * i);
+            }
+            return xIncyInc | xIncyDec | xDecyInc | xDecyDec;
+        }
 
-        public bool GetMoved() { return moved; }
-        public void SetMoved(bool moved) { this.moved = moved; }
+        private ulong RookAttacks(ulong rooks)
+        {
+            ulong xInc = 0;
+            ulong xDec = 0;
+            ulong yInc = 0;
+            ulong yDec = 0;
+            // x++
+            xInc |= (rooks & 0x7F7F7F7F7F7F7F7F) << 1;
+            // x--
+            xDec |= (rooks & 0xFEFEFEFEFEFEFEFE) >> 1;
+            // y++
+            yInc |= (rooks & 0x00FFFFFFFFFFFFFF) << 8;
+            // y--
+            yDec |= (rooks & 0xFFFFFFFFFFFFFF00) >> 8;
+
+            ulong mask = ~pieceBoard;
+            for (int i = 2; i <= 7; i++)
+            {
+                yInc |= (yInc & mask & 0x00FFFFFFFFFFFFFF) << (8 * i);
+                xInc |= (xInc & mask & 0x7F7F7F7F7F7F7F7F) << (1 * i);
+                xDec |= (xDec & mask & 0xFEFEFEFEFEFEFEFE) >> (1 * i);
+                yDec |= (yDec & mask & 0xFFFFFFFFFFFFFF00) >> (8 * i);
+            }
+            return xInc | xDec | yInc | yDec;
+        }
+
+        private ulong QueenAttacks(ulong queens)
+        {
+            ulong attacks = 0;
+            attacks |= BishopAttacks(queens);
+            attacks |= RookAttacks(queens);
+            return attacks;
+        }
+
+        // Source: https://www.chessprogramming.org/King_Pattern
+        private ulong KingAttacks(ulong king)
+        {
+            ulong attacks = ((king & 0x7F7F7F7F7F7F7F7F) << 1) | ((king & 0xFEFEFEFEFEFEFEFE) >> 1);
+            attacks |= ((attacks & 0x00FFFFFFFFFFFFFF) << 8) | ((attacks & 0xFFFFFFFFFFFFFF00) >> 8);
+            return attacks;
+        }
+
+        public void LoadFen(string fen)
+        {
+            string[] strings = fen.Split(" ");
+            string[] rows = strings[0].Split("/");
+
+            int index = 0;
+            foreach (string row in rows)
+            {
+                foreach (char c in row)
+                {
+                    if (c - '0' > 0 && c - '0' <= 9)
+                    {
+                        index += (c - '0');
+                    }
+                    ulong position = (ulong)0b1 << (index % 8 + 7 - index / 8);
+                    pieceBoard |= position;
+                    if (Char.IsUpper(c))
+                    {
+                        whiteMask |= position;
+                    }
+                    else
+                    {
+                        blackMask |= position;
+                    }
+
+                    if (Char.ToUpper(c) == 'K')
+                    {
+                        kingMask |= position;
+                    }
+                    else if (Char.ToUpper(c) == 'Q')
+                    {
+                        queenMask |= position;
+                    }
+                    else if (Char.ToUpper(c) == 'R')
+                    {
+                        rookMask |= position;
+                    }
+                    else if (Char.ToUpper(c) == 'B')
+                    {
+                        bishopMask |= position;
+                    }
+                    else if (Char.ToUpper(c) == 'N')
+                    {
+                        knightMask |= position;
+                    }
+                    else if (Char.ToUpper(c) == 'P')
+                    {
+                        pawnMask |= position;
+                    }
+                }
+            }
+
+            turn = strings[1] == "w" ? 0 : 1;
+            if (strings[2] != "-")
+            {
+                foreach (char c in strings[2])
+                {
+                    if (Char.IsUpper(c))
+                    {
+                        if (c == 'K')
+                        {
+                            castle |= 0x0000000000000080;
+                        }
+                        else if (c == 'Q')
+                        {
+                            castle |= 0x0000000000000001;
+                        }
+                    }
+                    else
+                    {
+                        if (c == 'k')
+                        {
+                            castle |= 0x8000000000000000;
+                        }
+                        else if (c == 'q')
+                        {
+                            castle |= 0x0100000000000000;
+                        }
+                    }
+                }
+            }
+            enPassant = StringToBinary(strings[3]);
+            halfMoveTimer = Int32.Parse(strings[4]);
+            move = Int32.Parse(strings[5]);
+        }
+
+        private static ulong StringToBinary(string s) => (ulong)0b1 << ((s[0] - 'a') + (s[1] - '1') * 8);
+        private static string BinaryToString(ulong l)
+        {
+            int index = (int)ulong.LeadingZeroCount(l);
+            return new string(new char[] { (char)((index % 8) + 'a'), (char)((index / 8) + '1') });
+        }
+
+        private static ulong FlipVertical(ulong x) => BitConverter.ToUInt64(BitConverter.GetBytes(x).Reverse().ToArray());
+
+        /**
+         * Source: https://www.chessprogramming.org/Flipping_Mirroring_and_Rotating
+         * Mirror a bitboard horizontally about the center files.
+         * File a is mapped to file h and vice versa.
+         * @param x any bitboard
+         * @return bitboard x mirrored horizontally
+         */
+        private static ulong MirrorHorizontal(ulong x)
+        {
+            const ulong k1 = 0x5555555555555555;
+            const ulong k2 = 0x3333333333333333;
+            const ulong k4 = 0x0f0f0f0f0f0f0f0f;
+            x ^= k4 & (x ^ ulong.RotateLeft(x, 8));
+            x ^= k2 & (x ^ ulong.RotateLeft(x, 4));
+            x ^= k1 & (x ^ ulong.RotateLeft(x, 2));
+            return ulong.RotateRight(x, 7);
+        }
+
+        /**
+         * Source: https://www.chessprogramming.org/Flipping_Mirroring_and_Rotating
+         * Flip a bitboard about the diagonal a1-h8.
+         * Square h1 is mapped to a8 and vice versa.
+         * @param x any bitboard
+         * @return bitboard x flipped about diagonal a1-h8
+         */
+        private static ulong FlipDiagA1H8(ulong x)
+        {
+            ulong t;
+            const ulong k1 = 0x5500550055005500;
+            const ulong k2 = 0x3333000033330000;
+            const ulong k4 = 0x0f0f0f0f00000000;
+            t = k4 & (x ^ (x << 28));
+            x ^= t ^ (t >> 28);
+            t = k2 & (x ^ (x << 14));
+            x ^= t ^ (t >> 14);
+            t = k1 & (x ^ (x << 7));
+            x ^= t ^ (t >> 7);
+            return x;
+        }
+
+        /**
+         * Source: https://www.chessprogramming.org/Flipping_Mirroring_and_Rotating
+         * Flip a bitboard about the antidiagonal a8-h1.
+         * Square a1 is mapped to h8 and vice versa.
+         * @param x any bitboard
+         * @return bitboard x flipped about antidiagonal a8-h1
+         */
+        private static ulong FlipDiagA8H1(ulong x)
+        {
+            ulong t;
+            const ulong k1 = 0xaa00aa00aa00aa00;
+            const ulong k2 = 0xcccc0000cccc0000;
+            const ulong k4 = 0xf0f0f0f00f0f0f0f;
+            t = x ^ (x << 36);
+            x ^= k4 & (t ^ (x >> 36));
+            t = k2 & (x ^ (x << 18));
+            x ^= t ^ (t >> 18);
+            t = k1 & (x ^ (x << 9));
+            x ^= t ^ (t >> 9);
+            return x;
+        }
     }
 }
