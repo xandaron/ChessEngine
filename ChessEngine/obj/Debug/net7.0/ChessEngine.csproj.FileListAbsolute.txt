@@ -28,3 +28,17 @@ D:\Projects\ChessEngine\ChessEngine\obj\Debug\net7.0\refint\ChessEngine.dll
 D:\Projects\ChessEngine\ChessEngine\obj\Debug\net7.0\ChessEngine.pdb
 D:\Projects\ChessEngine\ChessEngine\obj\Debug\net7.0\ChessEngine.genruntimeconfig.cache
 D:\Projects\ChessEngine\ChessEngine\obj\Debug\net7.0\ref\ChessEngine.dll
+C:\Users\xanda\Documents\ChessEngine\ChessEngine\bin\Debug\net7.0\ChessEngine.exe
+C:\Users\xanda\Documents\ChessEngine\ChessEngine\bin\Debug\net7.0\ChessEngine.deps.json
+C:\Users\xanda\Documents\ChessEngine\ChessEngine\bin\Debug\net7.0\ChessEngine.runtimeconfig.json
+C:\Users\xanda\Documents\ChessEngine\ChessEngine\bin\Debug\net7.0\ChessEngine.dll
+C:\Users\xanda\Documents\ChessEngine\ChessEngine\bin\Debug\net7.0\ChessEngine.pdb
+C:\Users\xanda\Documents\ChessEngine\ChessEngine\obj\Debug\net7.0\ChessEngine.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\xanda\Documents\ChessEngine\ChessEngine\obj\Debug\net7.0\ChessEngine.AssemblyInfoInputs.cache
+C:\Users\xanda\Documents\ChessEngine\ChessEngine\obj\Debug\net7.0\ChessEngine.AssemblyInfo.cs
+C:\Users\xanda\Documents\ChessEngine\ChessEngine\obj\Debug\net7.0\ChessEngine.csproj.CoreCompileInputs.cache
+C:\Users\xanda\Documents\ChessEngine\ChessEngine\obj\Debug\net7.0\ChessEngine.dll
+C:\Users\xanda\Documents\ChessEngine\ChessEngine\obj\Debug\net7.0\refint\ChessEngine.dll
+C:\Users\xanda\Documents\ChessEngine\ChessEngine\obj\Debug\net7.0\ChessEngine.pdb
+C:\Users\xanda\Documents\ChessEngine\ChessEngine\obj\Debug\net7.0\ChessEngine.genruntimeconfig.cache
+C:\Users\xanda\Documents\ChessEngine\ChessEngine\obj\Debug\net7.0\ref\ChessEngine.dll

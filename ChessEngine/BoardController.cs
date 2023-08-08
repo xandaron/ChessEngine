@@ -3,10 +3,10 @@ namespace ChessEngine
 {
     public class BoardController
     {
-        // A 0 is an empty space where as a 1 is an occupied space
         ulong pieceBoard = 0;
         ulong whiteMask = 0;
         ulong blackMask = 0;
+
         // Keeps track of the different piece types for both black and white.
         ulong kingMask = 0;
         ulong queenMask = 0;
@@ -67,7 +67,20 @@ namespace ChessEngine
             // If not in check then add other legal piece moves
             if (numberOfChecks == 0)
             {
-
+                ulong pinnedPieces = PinnedPieces(pieces);
+                pieces ^= pinnedPieces;
+                while (pieces != 0)
+                {
+                    ulong piece = (ulong)1 << (int)ulong.LeadingZeroCount(pieces);
+                    moves = GetMoves(piece) | (PawnAttacks(piece & pawnMask) & (oPieces | enPassant));
+                    while (moves != 0)
+                    {
+                        ulong move = (ulong)1 << (int)ulong.LeadingZeroCount(moves);
+                        legalMoves.Add(BinaryToString(piece) + BinaryToString(move));
+                        moves ^= move;
+                    }
+                    pieces ^= piece;
+                }
             }
 
             return legalMoves;
@@ -87,6 +100,37 @@ namespace ChessEngine
 
         private ulong Pinned(ulong piece)
         {
+            ulong king = 0;
+            if ((piece & whiteMask) != 0)
+            {
+                king = whiteMask & kingMask;
+            }
+            else if ((piece & blackMask) != 0)
+            {
+                king = blackMask & kingMask;
+            }
+            int pieceX = (int)ulong.LeadingZeroCount(piece) % 8;
+            int pieceY = (int)ulong.LeadingZeroCount(piece) / 8;
+            int kingX = (int)ulong.LeadingZeroCount(king) % 8;
+            int kingY = (int)ulong.LeadingZeroCount(king) / 8;
+
+            if (kingX == pieceX)
+            {
+                ulong line = (ulong)0x0101010101010101 << kingX;
+            }
+            else if (kingY == pieceY)
+            {
+                ulong line = (ulong)0x00000000000000FF << (kingY * 8);
+            }
+            else if ((pieceY - kingY) / (pieceX - kingX) > 0)
+            {
+
+            }
+            else if ((pieceY - kingY) / (pieceX - kingX) < 0)
+            {
+
+            }
+
             return piece;
         }
 
@@ -108,7 +152,7 @@ namespace ChessEngine
             return attacks;
         }
 
-        public ulong GetMoves(ulong pieces)
+        private ulong GetMoves(ulong pieces)
         {
             ulong attacks = 0;
             attacks |= PawnPushes(pieces & pawnMask);
@@ -120,7 +164,7 @@ namespace ChessEngine
             return attacks;
         }
 
-        public ulong GetAttacks(ulong pieces)
+        private ulong GetAttacks(ulong pieces)
         {
             ulong attacks = 0;
             attacks |= PawnAttacks(pieces & pawnMask);
@@ -326,7 +370,7 @@ namespace ChessEngine
             move = Int32.Parse(strings[5]);
         }
 
-        private static ulong StringToBinary(string s) => (ulong)0b1 << ((s[0] - 'a') + (s[1] - '1') * 8);
+        private static ulong StringToBinary(string s) => (ulong)1 << ((s[0] - 'a') + (s[1] - '1') * 8);
         private static string BinaryToString(ulong l)
         {
             int index = (int)ulong.LeadingZeroCount(l);
