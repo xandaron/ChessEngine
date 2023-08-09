@@ -1,6 +1,4 @@
 ﻿
-using System.Reflection.Metadata.Ecma335;
-
 namespace ChessEngine
 {
     public static class EngineController
@@ -25,19 +23,7 @@ namespace ChessEngine
                         throw new Exception("Invalid engine parameter");
                 }
             }
-            var watch = new System.Diagnostics.Stopwatch();
-            /*
-            watch.Start();
-            watch.Stop();
-            var w1 = watch.ElapsedTicks;
-            watch.Reset();
-            watch.Start();
-            watch.Stop();
-            var w2 = watch.ElapsedTicks;
-            
-            Console.WriteLine("{0}, {1}", t1, w1);
-            Console.WriteLine("{0}, {1}", t2, w2);
-            */
+
             Thread uciThreadRead = new(UCIController.ReadLoop);
             Thread uciThreadWrite = new(UCIController.WriteLoop);
             uciThreadRead.Start();
@@ -87,8 +73,7 @@ namespace ChessEngine
 
         public void MovePiece(string move)
         {
-            /*board.MovePiece(move);
-            board.Update();*/
+            board.Move(move);
         }
 
         public string Name
@@ -144,7 +129,6 @@ namespace ChessEngine
                 List<string> moves = board.GetLegalMoves();
                 int index = random.Next(moves.Count);
                 string move = moves[index];
-                board.MovePiece(move);
                 currentBestMove = move;
                 searchFinished = true;
             }

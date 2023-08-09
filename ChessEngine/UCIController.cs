@@ -1,4 +1,6 @@
 ﻿
+using System.Diagnostics.Tracing;
+
 namespace ChessEngine
 {
     public static class UCIController
@@ -54,7 +56,11 @@ namespace ChessEngine
             }
             else if (inputComponents[0] == "go")
             {
-                if (inputComponents[1] == "ponder")
+                if (inputComponents.Count() == 1)
+                {
+                    EngineController.SetState(2);
+                }
+                else if (inputComponents[1] == "ponder")
                 {
                     EngineController.SetState(1);
                 }
