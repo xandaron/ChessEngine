@@ -45,17 +45,21 @@ namespace ChessEngine
             ulong king = pieces & kingMask;
             ulong checks = GetAttacked(king) & ~pieces;
             int numberOfChecks = (int)ulong.PopCount(checks);
-            ulong moves;
+            ulong pinnedPieces = PinnedPieces(pieces & ~kingMask);
 
             // Legal king moves
             ulong temp = checks;
             while (temp != 0)
             {
                 ulong check = (ulong)1 << (int)ulong.TrailingZeroCount(temp);
-                oAttacks |= AttackLine(king, check);
+                if ((check & knightMask) == 0)
+                {
+                    oAttacks |= AttackLine(king, check) & ~check;
+                }
                 temp &= ~check;
             }
-            moves = GetAttacks(king) & ~(pieces | oAttacks);
+            ulong moves;
+            moves = KingAttacks(king) & ~(pieces | oAttacks);
             while (moves > 0)
             {
                 ulong move = (ulong)1 << (int)ulong.TrailingZeroCount(moves);
@@ -67,51 +71,98 @@ namespace ChessEngine
             if (numberOfChecks == 1)
             {
                 ulong stopCheck = checks | (AttackLine(king, checks) & GetAttacks(checks) & QueenAttacks(pieces & kingMask));
-                ulong checkPieces = pieces & ~PinnedPieces(pieces) & ~king;
+                ulong checkPieces = pieces & ~pinnedPieces & ~king;
                 while (checkPieces != 0)
                 {
                     ulong piece = (ulong)1 << (int)ulong.TrailingZeroCount(checkPieces);
                     moves = (stopCheck & (GetMoves(piece))) | (PawnAttacks(piece & pawnMask) & checks);
-                    while (moves != 0)
+                    if (moves != 0)
                     {
-                        ulong move = (ulong)1 << (int)ulong.TrailingZeroCount(moves);
-                        legalMoves.Add(BinaryToString(piece) + BinaryToString(move));
-                        moves &= ~move;
+                        legalMoves.AddRange(MoveList(piece, moves));
                     }
                     checkPieces &= ~piece;
+                }
+
+                // En passant out of check
+                if ((PawnAttacks(pieces & pawnMask) & enPassant & (((checks & 0x00FFFFFFFFFFFFFF) << 8) | ((checks & 0xFFFFFFFFFFFFFF00) >> 8))) != 0)
+                {
+                    if ((((checks & 0x7F7F7F7F7F7F7F7F) << 1) & pieces & pawnMask & ~pinnedPieces) != 0)
+                    {
+                        legalMoves.AddRange(MoveList(((checks & 0x7F7F7F7F7F7F7F7F) << 1) & pieces & pawnMask, enPassant));
+                    }
+                    if ((((checks & 0xFEFEFEFEFEFEFEFE) >> 1) & pieces & pawnMask & ~pinnedPieces) != 0)
+                    {
+                        legalMoves.AddRange(MoveList(((checks & 0xFEFEFEFEFEFEFEFE) >> 1) & pieces & pawnMask, enPassant));
+                    }
                 }
             }
 
             // If not in check then add other legal piece moves
             // Bugs:
-            // * pinned pieces that can capture their pinning piece not accounted for
-            // * no castling check
+            // * no castling
             // * allows illegal en passant
             if (numberOfChecks == 0)
             {
-                ulong pinnedPieces = PinnedPieces(pieces);
                 ulong checkPieces = pieces & ~pinnedPieces & ~king;
                 while (checkPieces != 0)
                 {
                     ulong piece = (ulong)1 << (int)ulong.TrailingZeroCount(checkPieces);
                     moves = (GetMoves(piece) & ~pieces) | (PawnAttacks(piece & pawnMask) & (oPieces | enPassant));
-                    while (moves != 0)
+                    if (moves != 0)
                     {
-                        ulong move = (ulong)1 << (int)ulong.TrailingZeroCount(moves);
-                        legalMoves.Add(BinaryToString(piece) + BinaryToString(move));
-                        moves &= ~move;
+                        legalMoves.AddRange(MoveList(piece, moves));
                     }
                     checkPieces &= ~piece;
+                }
+
+                while (pinnedPieces != 0)
+                {
+                    ulong piece = (ulong)1 << (int)ulong.TrailingZeroCount(pinnedPieces);
+                    moves = (GetMoves(piece) & AttackLine(king, piece) & ~king) | (PawnAttacks(piece & pawnMask) & AttackLine(king, piece) & oPieces);
+                    if (moves != 0)
+                    {
+                        legalMoves.AddRange(MoveList(piece, moves));
+                    }
+                    pinnedPieces &= ~piece;
                 }
             }
 
             return legalMoves;
         }
 
+        private List<string> MoveList(ulong piece, ulong moves)
+        {
+            List<string> list = new();
+            while (moves != 0)
+            {
+                ulong move = (ulong)1 << (int)ulong.TrailingZeroCount(moves);
+                string moveString = BinaryToString(piece) + BinaryToString(move);
+                if ((piece & pawnMask) != 0 && (move & 0xFF000000000000FF) != 0)
+                {
+                    list.Add(moveString + 'q');
+                    list.Add(moveString + 'r');
+                    list.Add(moveString + 'b');
+                    list.Add(moveString + 'n');
+                }
+                else
+                {
+                    list.Add(moveString);
+                }
+                moves &= ~move;
+            }
+            return list;
+        }
+
         public void Move(string move)
         {
             ulong piece = StringToBinary(move[..2]);
-            ulong target = StringToBinary(move[2..]);
+            ulong target = StringToBinary(move[2..4]);
+            char promotion = ' ';
+            if (move.Length == 5)
+            {
+                promotion = move[4];
+            }
+
             ref ulong teamMask = ref whiteMask;
             ref ulong oTeamMask = ref blackMask;
 
@@ -170,7 +221,26 @@ namespace ChessEngine
             else if((piece & pawnMask) != 0)
             {
                 pawnMask &= ~piece;
-                pawnMask |= target;
+
+                switch (promotion) 
+                {
+                    case 'q':
+                        queenMask |= target;
+                        break;
+                    case 'r':
+                        rookMask |= target;
+                        break;
+                    case 'b':
+                        bishopMask |= target;
+                        break;
+                    case 'n':
+                        knightMask |= target;
+                        break;
+                    default:
+                        pawnMask |= target;
+                        break;
+                }
+
                 halfMoveTimer = 0;
                 if ((piece << 16) == target)
                 {
@@ -368,7 +438,7 @@ namespace ChessEngine
             attacks |= (pawns & whiteMask & 0x00FEFEFEFEFEFEFE) << 7;
             // Black pawns
             attacks |= (pawns & blackMask & 0xFEFEFEFEFEFEFE00) >> 9;
-            attacks |= (pawns & blackMask & 0xF7F7F7F7F7F7F700) >> 7;
+            attacks |= (pawns & blackMask & 0x7F7F7F7F7F7F7F00) >> 7;
             return attacks;
         }
 
@@ -447,9 +517,9 @@ namespace ChessEngine
         // Source: https://www.chessprogramming.org/King_Pattern
         private ulong KingAttacks(ulong king)
         {
-            ulong attacks = ((king & 0x7F7F7F7F7F7F7F7F) << 1) | ((king & 0xFEFEFEFEFEFEFEFE) >> 1);
+            ulong attacks = king | ((king & 0x7F7F7F7F7F7F7F7F) << 1) | ((king & 0xFEFEFEFEFEFEFEFE) >> 1);
             attacks |= ((attacks & 0x00FFFFFFFFFFFFFF) << 8) | ((attacks & 0xFFFFFFFFFFFFFF00) >> 8);
-            return attacks;
+            return attacks & ~king;
         }
 
         public void LoadFen(string fen)

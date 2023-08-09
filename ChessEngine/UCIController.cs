@@ -47,11 +47,7 @@ namespace ChessEngine
                 else if (inputComponents[1] == "fen")
                 {
                     List<string> moves = new();
-                    if (inputComponents.Count() > 3)
-                    {
-                        moves.AddRange(inputComponents[4..]);
-                    }
-                    EngineController.StartNewGame(inputComponents[2], moves);
+                    EngineController.StartNewGame(string.Join(" ", inputComponents[2..]), moves);
                 }
             }
             else if (inputComponents[0] == "go")
