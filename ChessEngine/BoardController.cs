@@ -27,6 +27,99 @@ namespace ChessEngine
             LoadFen(fen);
         }
 
+
+        public void LoadFen(string fen)
+        {
+            string[] strings = fen.Split(" ");
+            string[] rows = strings[0].Split("/");
+
+            int index = 0;
+            foreach (string row in rows)
+            {
+                foreach (char c in row)
+                {
+                    if (c - '0' > 0 && c - '0' <= 9)
+                    {
+                        index += (c - '0');
+                        continue;
+                    }
+
+                    ulong position = (ulong)1 << ((index % 8) + (7 - index / 8) * 8);
+                    pieceBoard |= position;
+                    if (Char.IsUpper(c))
+                    {
+                        whiteMask |= position;
+                    }
+                    else
+                    {
+                        blackMask |= position;
+                    }
+
+                    if (Char.ToUpper(c) == 'K')
+                    {
+                        kingMask |= position;
+                    }
+                    else if (Char.ToUpper(c) == 'Q')
+                    {
+                        queenMask |= position;
+                    }
+                    else if (Char.ToUpper(c) == 'R')
+                    {
+                        rookMask |= position;
+                    }
+                    else if (Char.ToUpper(c) == 'B')
+                    {
+                        bishopMask |= position;
+                    }
+                    else if (Char.ToUpper(c) == 'N')
+                    {
+                        knightMask |= position;
+                    }
+                    else if (Char.ToUpper(c) == 'P')
+                    {
+                        pawnMask |= position;
+                    }
+                    index++;
+                }
+            }
+
+            turn = strings[1] == "w" ? 0 : 1;
+            if (strings[2] != "-")
+            {
+                foreach (char c in strings[2])
+                {
+                    if (Char.IsUpper(c))
+                    {
+                        if (c == 'K')
+                        {
+                            castle |= 0x0000000000000090;
+                        }
+                        else if (c == 'Q')
+                        {
+                            castle |= 0x0000000000000011;
+                        }
+                    }
+                    else
+                    {
+                        if (c == 'k')
+                        {
+                            castle |= 0x9000000000000000;
+                        }
+                        else if (c == 'q')
+                        {
+                            castle |= 0x1100000000000000;
+                        }
+                    }
+                }
+            }
+            if (strings[3] != "-")
+            {
+                enPassant = StringToBinary(strings[3]);
+            }
+            halfMoveTimer = Int32.Parse(strings[4]);
+            move = Int32.Parse(strings[5]);
+        }
+
         public void Move(string move)
         {
             ulong piece = StringToBinary(move[..2]);
@@ -54,6 +147,24 @@ namespace ChessEngine
             {
                 kingMask &= ~piece;
                 kingMask |= target;
+                ulong rook = 0;
+                if (piece << 2 == target)
+                {
+                    rook = piece << 3;
+                    rookMask &= ~rook;
+                    rookMask |= target >> 1;
+                    pieceBoard &= ~rook;
+                    pieceBoard |= target >> 1;
+                }
+                else if (piece >> 2 == target)
+                {
+                    rook = piece >> 4;
+                    rookMask &= ~rook;
+                    rookMask |= target << 1;
+                    pieceBoard &= ~rook;
+                    pieceBoard |= target << 1;
+                }
+                castle &= ~(piece | rook);
             }
             else if ((piece & queenMask) != 0)
             {
@@ -205,9 +316,6 @@ namespace ChessEngine
             }
 
             // If not in check then add other legal piece moves
-            // Bugs:
-            // * no castling
-            // * allows illegal en passant
             if (numberOfChecks == 0)
             {
                 ulong checkPieces = pieces & ~pinnedPieces & ~king;
@@ -231,6 +339,21 @@ namespace ChessEngine
                         legalMoves.AddRange(MoveList(piece, moves));
                     }
                     pinnedPieces &= ~piece;
+                }
+
+                if ((king & castle) != 0)
+                {
+                    Console.WriteLine("{0}, {1}", ((king << 3) & castle), ((king >> 4) & castle));
+                    Console.WriteLine("{0}", (RookAttacks(king) & RookAttacks(king << 3) & (pieceBoard | oAttacks)));
+                    if (((king << 3) & castle) != 0 && (RookAttacks(king) & RookAttacks(king << 3) & (pieceBoard | oAttacks)) == 0)
+                    {
+                        legalMoves.Add(BinaryToString(king) + BinaryToString(king << 2));
+                    }
+                    Console.WriteLine("{0}", (RookAttacks(king) & RookAttacks(king >> 4) & (pieceBoard | oAttacks)));
+                    if (((king >> 4) & castle) != 0 && (RookAttacks(king) & RookAttacks(king >> 4) & (pieceBoard | oAttacks)) == 0)
+                    {
+                        legalMoves.Add(BinaryToString(king) + BinaryToString(king >> 2));
+                    }
                 }
             }
 
@@ -526,167 +649,11 @@ namespace ChessEngine
             return attacks & ~king;
         }
 
-        public void LoadFen(string fen)
-        {
-            string[] strings = fen.Split(" ");
-            string[] rows = strings[0].Split("/");
-
-            int index = 0;
-            foreach (string row in rows)
-            {
-                foreach (char c in row)
-                {
-                    if (c - '0' > 0 && c - '0' <= 9)
-                    {
-                        index += (c - '0');
-                        continue;
-                    }
-
-                    ulong position = (ulong)1 << ((index % 8) + (7 - index / 8) * 8);
-                    pieceBoard |= position;
-                    if (Char.IsUpper(c))
-                    {
-                        whiteMask |= position;
-                    }
-                    else
-                    {
-                        blackMask |= position;
-                    }
-
-                    if (Char.ToUpper(c) == 'K')
-                    {
-                        kingMask |= position;
-                    }
-                    else if (Char.ToUpper(c) == 'Q')
-                    {
-                        queenMask |= position;
-                    }
-                    else if (Char.ToUpper(c) == 'R')
-                    {
-                        rookMask |= position;
-                    }
-                    else if (Char.ToUpper(c) == 'B')
-                    {
-                        bishopMask |= position;
-                    }
-                    else if (Char.ToUpper(c) == 'N')
-                    {
-                        knightMask |= position;
-                    }
-                    else if (Char.ToUpper(c) == 'P')
-                    {
-                        pawnMask |= position;
-                    }
-                    index++;
-                }
-            }
-
-            turn = strings[1] == "w" ? 0 : 1;
-            if (strings[2] != "-")
-            {
-                foreach (char c in strings[2])
-                {
-                    if (Char.IsUpper(c))
-                    {
-                        if (c == 'K')
-                        {
-                            castle |= 0x0000000000000080;
-                        }
-                        else if (c == 'Q')
-                        {
-                            castle |= 0x0000000000000001;
-                        }
-                    }
-                    else
-                    {
-                        if (c == 'k')
-                        {
-                            castle |= 0x8000000000000000;
-                        }
-                        else if (c == 'q')
-                        {
-                            castle |= 0x0100000000000000;
-                        }
-                    }
-                }
-            }
-            if (strings[3] != "-")
-            {
-                enPassant = StringToBinary(strings[3]);
-            }
-            halfMoveTimer = Int32.Parse(strings[4]);
-            move = Int32.Parse(strings[5]);
-        }
-
         private static ulong StringToBinary(string s) => (ulong)1 << ((s[0] - 'a') + (s[1] - '1') * 8);
         private static string BinaryToString(ulong l)
         {
             int index = (int)ulong.TrailingZeroCount(l);
             return new string(new char[] { (char)((index % 8) + 'a'), (char)((index / 8) + '1') });
-        }
-
-        private static ulong FlipVertical(ulong x) => BitConverter.ToUInt64(BitConverter.GetBytes(x).Reverse().ToArray());
-
-        /**
-         * Source: https://www.chessprogramming.org/Flipping_Mirroring_and_Rotating
-         * Mirror a bitboard horizontally about the center files.
-         * File a is mapped to file h and vice versa.
-         * @param x any bitboard
-         * @return bitboard x mirrored horizontally
-         */
-        private static ulong MirrorHorizontal(ulong x)
-        {
-            const ulong k1 = 0x5555555555555555;
-            const ulong k2 = 0x3333333333333333;
-            const ulong k4 = 0x0f0f0f0f0f0f0f0f;
-            x ^= k4 & (x ^ ulong.RotateLeft(x, 8));
-            x ^= k2 & (x ^ ulong.RotateLeft(x, 4));
-            x ^= k1 & (x ^ ulong.RotateLeft(x, 2));
-            return ulong.RotateRight(x, 7);
-        }
-
-        /**
-         * Source: https://www.chessprogramming.org/Flipping_Mirroring_and_Rotating
-         * Flip a bitboard about the diagonal a1-h8.
-         * Square h1 is mapped to a8 and vice versa.
-         * @param x any bitboard
-         * @return bitboard x flipped about diagonal a1-h8
-         */
-        private static ulong FlipDiagA1H8(ulong x)
-        {
-            ulong t;
-            const ulong k1 = 0x5500550055005500;
-            const ulong k2 = 0x3333000033330000;
-            const ulong k4 = 0x0f0f0f0f00000000;
-            t = k4 & (x ^ (x << 28));
-            x ^= t ^ (t >> 28);
-            t = k2 & (x ^ (x << 14));
-            x ^= t ^ (t >> 14);
-            t = k1 & (x ^ (x << 7));
-            x ^= t ^ (t >> 7);
-            return x;
-        }
-
-        /**
-         * Source: https://www.chessprogramming.org/Flipping_Mirroring_and_Rotating
-         * Flip a bitboard about the antidiagonal a8-h1.
-         * Square a1 is mapped to h8 and vice versa.
-         * @param x any bitboard
-         * @return bitboard x flipped about antidiagonal a8-h1
-         */
-        private static ulong FlipDiagA8H1(ulong x)
-        {
-            ulong t;
-            const ulong k1 = 0xaa00aa00aa00aa00;
-            const ulong k2 = 0xcccc0000cccc0000;
-            const ulong k4 = 0xf0f0f0f00f0f0f0f;
-            t = x ^ (x << 36);
-            x ^= k4 & (t ^ (x >> 36));
-            t = k2 & (x ^ (x << 18));
-            x ^= t ^ (t >> 18);
-            t = k1 & (x ^ (x << 9));
-            x ^= t ^ (t >> 9);
-            return x;
         }
     }
 }
