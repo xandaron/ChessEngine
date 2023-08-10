@@ -27,6 +27,113 @@ namespace ChessEngine
             LoadFen(fen);
         }
 
+        public void Move(string move)
+        {
+            ulong piece = StringToBinary(move[..2]);
+            ulong target = StringToBinary(move[2..4]);
+            char promotion = ' ';
+            if (move.Length == 5)
+            {
+                promotion = move[4];
+            }
+
+            ref ulong teamMask = ref whiteMask;
+            ref ulong oTeamMask = ref blackMask;
+
+            if ((piece & teamMask) == 0)
+            {
+                teamMask = ref blackMask;
+                oTeamMask = ref whiteMask;
+            }
+
+            halfMoveTimer++;
+
+            enPassant = 0;
+
+            if ((piece & kingMask) != 0)
+            {
+                kingMask &= ~piece;
+                kingMask |= target;
+            }
+            else if ((piece & queenMask) != 0)
+            {
+                queenMask &= ~piece;
+                queenMask |= target;
+            }
+            else if ((piece & rookMask) != 0)
+            {
+                rookMask &= ~piece;
+                rookMask |= target;
+            }
+            else if ((piece & bishopMask) != 0)
+            {
+                bishopMask &= ~piece;
+                bishopMask |= target;
+            }
+            else if ((piece & knightMask) != 0)
+            {
+                knightMask &= ~piece;
+                knightMask |= target;
+            }
+            else if ((piece & pawnMask) != 0)
+            {
+                // p and pinned pawns is used to stop enPassant into check on the next move
+                // KPpr could result in check if the white pawn was to enPassant which is illegal
+                ulong pinnedPawns = PinnedPieces(pieceBoard & oTeamMask & pawnMask);
+                ulong p = ((target & 0x7F7F7F7F7F7F7F7F) << 1 | (target & 0xFEFEFEFEFEFEFEFE) >> 1) & ~pinnedPawns & pieceBoard & pawnMask & oTeamMask;
+                if ((piece << 16) == target && p != 0)
+                {
+                    enPassant = piece << 8;
+                }
+                else if ((piece >> 16) == target && p != 0)
+                {
+                    enPassant = piece >> 8;
+                }
+
+                pawnMask &= ~piece;
+                switch (promotion)
+                {
+                    case 'q':
+                        queenMask |= target;
+                        break;
+                    case 'r':
+                        rookMask |= target;
+                        break;
+                    case 'b':
+                        bishopMask |= target;
+                        break;
+                    case 'n':
+                        knightMask |= target;
+                        break;
+                    default:
+                        pawnMask |= target;
+                        break;
+                }
+
+                halfMoveTimer = 0;
+            }
+
+            teamMask &= ~piece;
+            teamMask |= target;
+            pieceBoard &= ~piece;
+            pieceBoard |= target;
+
+            if ((oTeamMask & target) != 0)
+            {
+                oTeamMask &= ~target;
+                kingMask &= ~target;
+                queenMask &= ~target;
+                rookMask &= ~target;
+                bishopMask &= ~target;
+                knightMask &= ~target;
+                pawnMask &= ~target;
+                halfMoveTimer = 0;
+            }
+
+            turn++;
+            move += turn % 2 == 0 ? 1 : 0;
+        }
+
         public List<string> GetLegalMoves()
         {
             ulong pieces = pieceBoard;
@@ -151,109 +258,6 @@ namespace ChessEngine
                 moves &= ~move;
             }
             return list;
-        }
-
-        public void Move(string move)
-        {
-            ulong piece = StringToBinary(move[..2]);
-            ulong target = StringToBinary(move[2..4]);
-            char promotion = ' ';
-            if (move.Length == 5)
-            {
-                promotion = move[4];
-            }
-
-            ref ulong teamMask = ref whiteMask;
-            ref ulong oTeamMask = ref blackMask;
-
-            if ((piece & teamMask) == 0)
-            {
-                teamMask = ref blackMask;
-                oTeamMask = ref whiteMask;
-            }
-
-            halfMoveTimer++;
-
-            teamMask &= ~piece;
-            teamMask |= target;
-            pieceBoard &= ~piece;
-            pieceBoard |= target;
-
-            if ((oTeamMask & target) != 0)
-            {
-                oTeamMask &= ~target;
-                kingMask &= ~target;
-                queenMask &= ~target;
-                rookMask &= ~target;
-                bishopMask &= ~target;
-                knightMask &= ~target;
-                pawnMask &= ~target;
-                halfMoveTimer = 0;
-            }
-
-            enPassant = 0;
-
-            if ((piece & kingMask) != 0)
-            {
-                kingMask &= ~piece;
-                kingMask |= target;
-            }
-            else if ((piece & queenMask) != 0)
-            {
-                queenMask &= ~piece;
-                queenMask |= target;
-            }
-            else if ((piece & rookMask) != 0)
-            {
-                rookMask &= ~piece;
-                rookMask |= target;
-            }
-            else if((piece & bishopMask) != 0)
-            {
-                bishopMask &= ~piece;
-                bishopMask |= target;
-            }
-            else if((piece & knightMask) != 0)
-            {
-                knightMask &= ~piece;
-                knightMask |= target;
-            }
-            else if((piece & pawnMask) != 0)
-            {
-                pawnMask &= ~piece;
-
-                switch (promotion) 
-                {
-                    case 'q':
-                        queenMask |= target;
-                        break;
-                    case 'r':
-                        rookMask |= target;
-                        break;
-                    case 'b':
-                        bishopMask |= target;
-                        break;
-                    case 'n':
-                        knightMask |= target;
-                        break;
-                    default:
-                        pawnMask |= target;
-                        break;
-                }
-
-                halfMoveTimer = 0;
-                if ((piece << 16) == target)
-                {
-                    enPassant = piece << 8;
-                }
-                else if ((piece >> 16) == target)
-                {
-                    enPassant = piece >> 8;
-                }
-            }
-
-            turn++;
-            move += turn % 2 == 0 ? 1 : 0;
         }
 
         private ulong PinnedPieces(ulong pieces)
@@ -410,7 +414,7 @@ namespace ChessEngine
             {
                 attacks |= KingAttacks(king);
             }
-            
+
             return attacks;
         }
 

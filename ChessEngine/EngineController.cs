@@ -9,6 +9,8 @@ namespace ChessEngine
         private static int bTime = 0;
         private static int wInc = 0;
         private static int bInc = 0;
+        private static Thread uciThreadRead = new (UCIController.ReadLoop);
+        private static Thread uciThreadWrite = new(UCIController.WriteLoop);
 
         static void Main(string[] args)
         {
@@ -24,21 +26,25 @@ namespace ChessEngine
                 }
             }
 
-            Thread uciThreadRead = new(UCIController.ReadLoop);
-            Thread uciThreadWrite = new(UCIController.WriteLoop);
             uciThreadRead.Start();
             uciThreadWrite.Start();
 
             while (true)
             {
                 engine.Update(state);
-                if (engine.SearchFinished)
+                if (state == 2 && engine.SearchFinished)
                 {
                     UCIController.AddOutput("bestmove " + engine.CurrentBestMove);
                     state = 0;
                     engine.ResetSearch();
                 }
             }
+        }
+        
+        public static void Quit()
+        {
+            UCIController.run = false;
+            Environment.Exit(0);
         }
 
         public static Engine GetEngine() { return engine; }
@@ -74,6 +80,11 @@ namespace ChessEngine
         public void MovePiece(string move)
         {
             board.Move(move);
+        }
+
+        public List<string> GetMoves()
+        {
+            return board.GetLegalMoves();
         }
 
         public string Name
