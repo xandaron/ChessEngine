@@ -56,11 +56,11 @@ namespace ChessEngine
                 case "go":
                     if (inputComponents.Count() == 1)
                     {
-                        EngineController.SetState(2);
+                        EngineController.SetState(1);
                     }
                     else if (inputComponents[1] == "ponder")
                     {
-                        EngineController.SetState(1);
+                        EngineController.SetState(2);
                     }
                     else if (inputComponents[1] == "wtime")
                     {
@@ -69,7 +69,7 @@ namespace ChessEngine
                         int winc = Int32.Parse(inputComponents[6]);
                         int binc = Int32.Parse(inputComponents[8]);
                         EngineController.SetTimeControls(winc, binc, wtime, btime);
-                        EngineController.SetState(2);
+                        EngineController.SetState(1);
                     }
                     break;
                 case "lm":

@@ -1,4 +1,6 @@
 ﻿
+using System.Security.Cryptography.X509Certificates;
+
 namespace ChessEngine
 {
     public class BoardController
@@ -26,7 +28,6 @@ namespace ChessEngine
         {
             LoadFen(fen);
         }
-
 
         public void LoadFen(string fen)
         {
@@ -175,6 +176,7 @@ namespace ChessEngine
             {
                 rookMask &= ~piece;
                 rookMask |= target;
+                castle &= ~piece;
             }
             else if ((piece & bishopMask) != 0)
             {
@@ -243,6 +245,26 @@ namespace ChessEngine
 
             turn++;
             move += turn % 2 == 0 ? 1 : 0;
+        }
+
+        public int PieceScore(int team)
+        {
+            ulong pieces = 0;
+            if (team == 0)
+            {
+                pieces = pieceBoard & whiteMask;
+            }
+            else
+            {
+                pieces = pieceBoard & blackMask;
+            }
+            int value = 0;
+            value += (int)ulong.PopCount(pieces & pawnMask);
+            value += (int)ulong.PopCount(pieces & knightMask) * 3;
+            value += (int)ulong.PopCount(pieces & bishopMask) * 3;
+            value += (int)ulong.PopCount(pieces & rookMask) * 5;
+            value += (int)ulong.PopCount(pieces & queenMask) * 9;
+            return value;
         }
 
         public List<string> GetLegalMoves()
@@ -343,13 +365,10 @@ namespace ChessEngine
 
                 if ((king & castle) != 0)
                 {
-                    Console.WriteLine("{0}, {1}", ((king << 3) & castle), ((king >> 4) & castle));
-                    Console.WriteLine("{0}", (RookAttacks(king) & RookAttacks(king << 3) & (pieceBoard | oAttacks)));
                     if (((king << 3) & castle) != 0 && (RookAttacks(king) & RookAttacks(king << 3) & (pieceBoard | oAttacks)) == 0)
                     {
                         legalMoves.Add(BinaryToString(king) + BinaryToString(king << 2));
                     }
-                    Console.WriteLine("{0}", (RookAttacks(king) & RookAttacks(king >> 4) & (pieceBoard | oAttacks)));
                     if (((king >> 4) & castle) != 0 && (RookAttacks(king) & RookAttacks(king >> 4) & (pieceBoard | oAttacks)) == 0)
                     {
                         legalMoves.Add(BinaryToString(king) + BinaryToString(king >> 2));
@@ -358,6 +377,32 @@ namespace ChessEngine
             }
 
             return legalMoves;
+        }
+
+        public List<string> GetCaptures()
+        {
+            List<string> legalMoves = GetLegalMoves();
+            List<string> captures = new();
+            ulong teamMask;
+            if (turn % 2 == 0)
+            {
+                teamMask = blackMask;
+            }
+            else
+            {
+                teamMask = whiteMask;
+            }
+
+            foreach (string move in legalMoves)
+            {
+                ulong target = StringToBinary(move[2..4]);
+                if ((target & teamMask) != 0 || ((StringToBinary(move[..2]) & pawnMask) != 0 && (target & enPassant) != 0))
+                {
+                    captures.Add(move);
+                }
+            }
+
+            return captures;
         }
 
         private List<string> MoveList(ulong piece, ulong moves)

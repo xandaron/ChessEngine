@@ -1,0 +1,6 @@
+bestmove e1f1
+bestmove h8h7
+bestmove b7b6
+bestmove e8d8
+bestmove d8e8
+bestmove e3d3

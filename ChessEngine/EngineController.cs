@@ -1,9 +1,11 @@
 ﻿
+using System.Resources;
+
 namespace ChessEngine
 {
     public static class EngineController
     {
-        private static Engine engine = new EngineRNG();
+        private static Engine engine = new RNGEngine();
         private static int state = 0;
         private static int wTime = 0;
         private static int bTime = 0;
@@ -19,7 +21,10 @@ namespace ChessEngine
                 switch (args[0])
                 {
                     case "--rng":
-                        engine = new EngineRNG();
+                        engine = new RNGEngine();
+                        break;
+                    case "--rgd":
+                        engine = new RNGGreedyEngine();
                         break;
                     default:
                         throw new Exception("Invalid engine parameter");
@@ -32,7 +37,7 @@ namespace ChessEngine
             while (true)
             {
                 engine.Update(state);
-                if (state == 2 && engine.SearchFinished)
+                if (state == 1 && engine.SearchFinished)
                 {
                     UCIController.AddOutput("bestmove " + engine.CurrentBestMove);
                     state = 0;
@@ -125,22 +130,44 @@ namespace ChessEngine
         }
     }
 
-    public class EngineRNG : Engine
+    public class RNGEngine : Engine
     {
         private Random random = new();
-        public EngineRNG()
+        public RNGEngine()
         {
             _name = "EngineRNG";
         }
 
         public override void Update(int state)
         {
-            if (state == 2)
+            if (state == 1)
             {
                 List<string> moves = board.GetLegalMoves();
                 int index = random.Next(moves.Count);
                 string move = moves[index];
                 currentBestMove = move;
+                searchFinished = true;
+            }
+        }
+    }
+
+    public class RNGGreedyEngine : Engine
+    {
+        private Random random = new();
+        public override void Update(int state)
+        {
+            if (state == 1)
+            {
+                List<string> captures = board.GetCaptures();
+                if (captures.Count > 0)
+                {
+                    currentBestMove = captures[random.Next(captures.Count)];
+                }
+                else
+                {
+                    List<string> legalMoves = board.GetLegalMoves();
+                    currentBestMove = legalMoves[random.Next(legalMoves.Count())];
+                }
                 searchFinished = true;
             }
         }
