@@ -140,7 +140,7 @@ namespace ChessEngine
 
             halfMoveTimer++;
 
-            enPassant = 0;
+            
 
             if ((oTeamMask & target) != 0)
             {
@@ -153,6 +153,15 @@ namespace ChessEngine
                 pawnMask &= ~target;
                 halfMoveTimer = 0;
             }
+            else if (target == enPassant && (piece & pawnMask) != 0)
+            {
+                ulong passantTarget = (target.CompareTo(piece) > 0) ? target >> 8 : target << 8;
+                oTeamMask &= ~passantTarget;
+                pawnMask &= ~passantTarget;
+                pieceBoard &= ~passantTarget;
+            }
+
+            enPassant = 0;
 
             if ((piece & kingMask) != 0)
             {
@@ -216,6 +225,7 @@ namespace ChessEngine
                 {
                     enPassant = piece >> 8;
                 }
+
 
                 pawnMask &= ~piece;
                 switch (promotion)
@@ -369,11 +379,11 @@ namespace ChessEngine
                 {
                     ulong s = king << 1 | king << 2;
                     ulong l = king >> 1 | king >> 2;
-                    if (((king << 3) & castle) != 0 && (RookAttacks(king) & RookAttacks(king << 3)) != 0 && (s & oAttacks) == 0)
+                    if (((king << 3) & castle) != 0 && (king & RookAttacks(king << 3)) != 0 && (s & oAttacks) == 0)
                     {
                         legalMoves.Add(BinaryToString(king) + BinaryToString(king << 2));
                     }
-                    if (((king >> 4) & castle) != 0 && (RookAttacks(king) & RookAttacks(king >> 4)) != 0 && (s & oAttacks) == 0)
+                    if (((king >> 4) & castle) != 0 && (king & RookAttacks(king >> 4)) != 0 && (l & oAttacks) == 0)
                     {
                         legalMoves.Add(BinaryToString(king) + BinaryToString(king >> 2));
                     }
