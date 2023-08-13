@@ -8,7 +8,7 @@ namespace ChessEngine
         private static Queue<string> inQuery = new();
         private static Queue<string> outQuery = new();
 
-        public static bool run = true;
+        private static bool run = true;
 
         public static void Decoder()
         {
@@ -76,6 +76,10 @@ namespace ChessEngine
                     string legalMoves = string.Join(" ", EngineController.GetEngine().GetMoves());
                     Console.WriteLine(legalMoves);
                     break;
+                case "ca":
+                    string captures = string.Join(" ", EngineController.GetEngine().GetBoard().GetCaptures());
+                    Console.WriteLine(captures);
+                    break;
                 case "quit":
                     EngineController.Quit();
                     break;
@@ -86,7 +90,6 @@ namespace ChessEngine
                     break;
             }
         }
-
 
         public static void ReadLoop()
         {
@@ -124,6 +127,11 @@ namespace ChessEngine
         public static void AddOutput(string outQ)
         {
             outQuery.Enqueue(outQ);
+        }
+
+        public static void Stop()
+        {
+            run = false;
         }
     }
 }

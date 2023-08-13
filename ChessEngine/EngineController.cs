@@ -1,6 +1,4 @@
 ﻿
-using System.Resources;
-
 namespace ChessEngine
 {
     public static class EngineController
@@ -24,7 +22,7 @@ namespace ChessEngine
                         engine = new RNGEngine();
                         break;
                     case "--rgd":
-                        engine = new RNGGreedyEngine();
+                        engine = new RNGreedy();
                         break;
                     default:
                         throw new Exception("Invalid engine parameter");
@@ -48,7 +46,7 @@ namespace ChessEngine
         
         public static void Quit()
         {
-            UCIController.run = false;
+            UCIController.Stop();
             Environment.Exit(0);
         }
 
@@ -151,9 +149,15 @@ namespace ChessEngine
         }
     }
 
-    public class RNGGreedyEngine : Engine
+    public class RNGreedy : Engine
     {
         private Random random = new();
+
+        public RNGreedy()
+        {
+            _name = "RNGreedy";
+        }
+
         public override void Update(int state)
         {
             if (state == 1)

@@ -1,6 +1,4 @@
 ﻿
-using System.Security.Cryptography.X509Certificates;
-
 namespace ChessEngine
 {
     public class BoardController
@@ -144,6 +142,18 @@ namespace ChessEngine
 
             enPassant = 0;
 
+            if ((oTeamMask & target) != 0)
+            {
+                oTeamMask &= ~target;
+                kingMask &= ~target;
+                queenMask &= ~target;
+                rookMask &= ~target;
+                bishopMask &= ~target;
+                knightMask &= ~target;
+                pawnMask &= ~target;
+                halfMoveTimer = 0;
+            }
+
             if ((piece & kingMask) != 0)
             {
                 kingMask &= ~piece;
@@ -156,6 +166,8 @@ namespace ChessEngine
                     rookMask |= target >> 1;
                     pieceBoard &= ~rook;
                     pieceBoard |= target >> 1;
+                    teamMask &= ~rook;
+                    teamMask |= target >> 1;
                 }
                 else if (piece >> 2 == target)
                 {
@@ -164,6 +176,8 @@ namespace ChessEngine
                     rookMask |= target << 1;
                     pieceBoard &= ~rook;
                     pieceBoard |= target << 1;
+                    teamMask &= ~rook;
+                    teamMask |= target << 1;
                 }
                 castle &= ~(piece | rook);
             }
@@ -230,18 +244,6 @@ namespace ChessEngine
             teamMask |= target;
             pieceBoard &= ~piece;
             pieceBoard |= target;
-
-            if ((oTeamMask & target) != 0)
-            {
-                oTeamMask &= ~target;
-                kingMask &= ~target;
-                queenMask &= ~target;
-                rookMask &= ~target;
-                bishopMask &= ~target;
-                knightMask &= ~target;
-                pawnMask &= ~target;
-                halfMoveTimer = 0;
-            }
 
             turn++;
             move += turn % 2 == 0 ? 1 : 0;
@@ -365,11 +367,13 @@ namespace ChessEngine
 
                 if ((king & castle) != 0)
                 {
-                    if (((king << 3) & castle) != 0 && (RookAttacks(king) & RookAttacks(king << 3) & (pieceBoard | oAttacks)) == 0)
+                    ulong s = king << 1 | king << 2;
+                    ulong l = king >> 1 | king >> 2;
+                    if (((king << 3) & castle) != 0 && (RookAttacks(king) & RookAttacks(king << 3)) != 0 && (s & oAttacks) == 0)
                     {
                         legalMoves.Add(BinaryToString(king) + BinaryToString(king << 2));
                     }
-                    if (((king >> 4) & castle) != 0 && (RookAttacks(king) & RookAttacks(king >> 4) & (pieceBoard | oAttacks)) == 0)
+                    if (((king >> 4) & castle) != 0 && (RookAttacks(king) & RookAttacks(king >> 4)) != 0 && (s & oAttacks) == 0)
                     {
                         legalMoves.Add(BinaryToString(king) + BinaryToString(king >> 2));
                     }
@@ -485,12 +489,12 @@ namespace ChessEngine
             return piece;
         }
 
-        private static ulong AttackLine(ulong king, ulong piece)
+        private static ulong AttackLine(ulong p1, ulong p2)
         {
-            int pieceX = (int)ulong.TrailingZeroCount(piece) % 8;
-            int pieceY = (int)ulong.TrailingZeroCount(piece) / 8;
-            int kingX = (int)ulong.TrailingZeroCount(king) % 8;
-            int kingY = (int)ulong.TrailingZeroCount(king) / 8;
+            int pieceX = (int)ulong.TrailingZeroCount(p2) % 8;
+            int pieceY = (int)ulong.TrailingZeroCount(p2) / 8;
+            int kingX = (int)ulong.TrailingZeroCount(p1) % 8;
+            int kingY = (int)ulong.TrailingZeroCount(p1) / 8;
 
             ulong line = 0;
 
