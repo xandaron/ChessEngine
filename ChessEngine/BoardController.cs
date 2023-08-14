@@ -3,34 +3,52 @@ namespace ChessEngine
 {
     public class BoardController
     {
-        ulong pieceBoard = 0;
-        ulong whiteMask = 0;
-        ulong blackMask = 0;
+        ulong pieceBoard;
+        ulong whiteMask;
+        ulong blackMask;
 
         // Keeps track of the different piece types for both black and white.
-        ulong kingMask = 0;
-        ulong queenMask = 0;
-        ulong rookMask = 0;
-        ulong bishopMask = 0;
-        ulong knightMask = 0;
-        ulong pawnMask = 0;
+        ulong kingMask;
+        ulong queenMask;
+        ulong rookMask;
+        ulong bishopMask;
+        ulong knightMask;
+        ulong pawnMask;
 
-        int turn = 0;
-        int move = 1;
-        int halfMoveTimer = 0;
+        int turn;
+        int move;
+        int halfMoveTimer;
 
-        ulong enPassant = 0;
-        ulong castle = 0;
+        ulong enPassant;
+        ulong castle;
+
+        string fen;
+        List<string> movesMade = new();
 
         public BoardController(string fen)
         {
-            LoadFen(fen);
+            this.fen = fen;
+            LoadFen();
         }
 
-        public void LoadFen(string fen)
+        public void LoadFen()
         {
             string[] strings = fen.Split(" ");
             string[] rows = strings[0].Split("/");
+
+            pieceBoard = 0;
+            whiteMask = 0;
+            blackMask = 0;
+
+            kingMask = 0;
+            queenMask = 0;
+            rookMask = 0;
+            bishopMask = 0;
+            knightMask = 0;
+            pawnMask = 0;
+
+            castle = 0;
+            enPassant = 0;
 
             int index = 0;
             foreach (string row in rows)
@@ -121,6 +139,7 @@ namespace ChessEngine
 
         public void Move(string move)
         {
+            movesMade.Add(move);
             ulong piece = StringToBinary(move[..2]);
             ulong target = StringToBinary(move[2..4]);
             char promotion = ' ';
@@ -139,8 +158,6 @@ namespace ChessEngine
             }
 
             halfMoveTimer++;
-
-            
 
             if ((oTeamMask & target) != 0)
             {
@@ -257,6 +274,18 @@ namespace ChessEngine
 
             turn++;
             move += turn % 2 == 0 ? 1 : 0;
+        }
+
+        public void UnMove()
+        {
+            LoadFen();
+            List<string> moveList = movesMade;
+            moveList.RemoveAt(moveList.Count - 1);
+            movesMade = new();
+            foreach (string move in moveList)
+            {
+                Move(move);
+            }
         }
 
         public int PieceScore(int team)

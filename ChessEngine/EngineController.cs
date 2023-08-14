@@ -1,4 +1,6 @@
 ﻿
+using System.Security.Cryptography.X509Certificates;
+
 namespace ChessEngine
 {
     public static class EngineController
@@ -62,6 +64,18 @@ namespace ChessEngine
 
         public static void SetState(int s) { state = s; }
 
+        public static void Perft(int depth)
+        {
+            List<string> moves = engine.GetMoves();
+            foreach(string move in moves)
+            {
+                engine.MovePiece(move);
+                int count = engine.Perft(depth - 1);
+                UCIController.AddOutput($"{move}: {count}");
+                engine.UndoMove();
+            }
+        }
+
         public static void SetTimeControls(int wt, int bt, int wi, int bi) 
         {
             wTime = wt;
@@ -85,9 +99,31 @@ namespace ChessEngine
             board.Move(move);
         }
 
+        public void UndoMove()
+        {
+            board.UnMove();
+        }
+
         public List<string> GetMoves()
         {
             return board.GetLegalMoves();
+        }
+
+        public int Perft(int depth)
+        {
+            List<string> moves = GetMoves();
+            if (depth == 1)
+            {
+                return moves.Count();
+            }
+            int count = 0;
+            foreach (string move in moves)
+            {
+                board.Move(move);
+                count += Perft(depth - 1);
+                board.UnMove();
+            }
+            return count;
         }
 
         public string Name

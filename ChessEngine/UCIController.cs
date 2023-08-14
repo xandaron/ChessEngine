@@ -1,6 +1,4 @@
 ﻿
-using System.Diagnostics.Tracing;
-
 namespace ChessEngine
 {
     public static class UCIController
@@ -58,6 +56,10 @@ namespace ChessEngine
                     {
                         EngineController.SetState(1);
                     }
+                    else if (inputComponents[1] == "perft")
+                    {
+                        EngineController.Perft(Int32.Parse(inputComponents[2]));
+                    }
                     else if (inputComponents[1] == "ponder")
                     {
                         EngineController.SetState(2);
@@ -72,11 +74,11 @@ namespace ChessEngine
                         EngineController.SetState(1);
                     }
                     break;
-                case "lm":
+                case "moves":
                     string legalMoves = string.Join(" ", EngineController.GetEngine().GetMoves());
                     Console.WriteLine(legalMoves);
                     break;
-                case "ca":
+                case "captures":
                     string captures = string.Join(" ", EngineController.GetEngine().GetBoard().GetCaptures());
                     Console.WriteLine(captures);
                     break;
