@@ -13,11 +13,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\xanda\\Documents\\ChessEngine\\ChessEngine\\ChessEngine.csproj",
+      "projectUniqueName": "D:\\Projects\\ChessEngine\\ChessEngine\\ChessEngine.csproj",
       "projectName": "ChessEngine",
-      "projectPath": "C:\\Users\\xanda\\Documents\\ChessEngine\\ChessEngine\\ChessEngine.csproj",
+      "projectPath": "D:\\Projects\\ChessEngine\\ChessEngine\\ChessEngine.csproj",
       "packagesPath": "C:\\Users\\xanda\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\xanda\\Documents\\ChessEngine\\ChessEngine\\obj\\",
+      "outputPath": "D:\\Projects\\ChessEngine\\ChessEngine\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\xanda\\AppData\\Roaming\\NuGet\\NuGet.Config",

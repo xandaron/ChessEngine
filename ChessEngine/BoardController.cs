@@ -137,6 +137,10 @@ namespace ChessEngine
             move = Int32.Parse(strings[5]);
         }
 
+        public string GetFen() { return fen; }
+
+        public List<string> GetMovesMade() { return movesMade; }
+
         public void Move(string move)
         {
             movesMade.Add(move);
@@ -276,7 +280,7 @@ namespace ChessEngine
             move += turn % 2 == 0 ? 1 : 0;
         }
 
-        public void UnMove()
+        public void UndoMove()
         {
             LoadFen();
             List<string> moveList = movesMade;
@@ -288,25 +292,36 @@ namespace ChessEngine
             }
         }
 
-        public int PieceScore(int team)
+        public bool IsCheck()
         {
-            ulong pieces = 0;
-            if (team == 0)
+            ulong teamMask = whiteMask;
+            if (turn % 2 == 1)
             {
-                pieces = pieceBoard & whiteMask;
+                teamMask = blackMask;
             }
-            else
+
+            if ((GetAttacks(pieceBoard & ~teamMask) & kingMask & teamMask) != 0)
             {
-                pieces = pieceBoard & blackMask;
+                return true;
             }
-            int value = 0;
-            value += (int)ulong.PopCount(pieces & pawnMask);
-            value += (int)ulong.PopCount(pieces & knightMask) * 3;
-            value += (int)ulong.PopCount(pieces & bishopMask) * 3;
-            value += (int)ulong.PopCount(pieces & rookMask) * 5;
-            value += (int)ulong.PopCount(pieces & queenMask) * 9;
-            return value;
+            return false;
         }
+
+        public ulong GetWhitePieces() { return whiteMask; }
+
+        public ulong GetBlackPieces() { return blackMask; }
+
+        public ulong GetPawns() { return pawnMask; }
+
+        public ulong GetKnights() { return knightMask; }
+
+        public ulong GetBishops() { return bishopMask; }
+
+        public ulong GetRooks() { return rookMask; }
+
+        public ulong GetQueens() { return queenMask; }
+
+        public ulong GetKings() { return kingMask; }
 
         public List<string> GetLegalMoves()
         {
@@ -420,6 +435,22 @@ namespace ChessEngine
             }
 
             return legalMoves;
+        }
+
+        public List<string> GetChecks()
+        {
+            List<string> moves = GetLegalMoves(); 
+            List<string> checks = new();
+            foreach (string move in moves)
+            {
+                Move(move);
+                if (IsCheck())
+                {
+                    checks.Add(move);
+                }
+                UndoMove();
+            }
+            return checks;
         }
 
         public List<string> GetCaptures()
@@ -742,6 +773,21 @@ namespace ChessEngine
         {
             int index = (int)ulong.TrailingZeroCount(l);
             return new string(new char[] { (char)((index % 8) + 'a'), (char)((index / 8) + '1') });
+        }
+
+        public int GetTurn()
+        {
+            return turn % 2;
+        }
+
+        public BoardController Copy()
+        {
+            BoardController b = new(fen);
+            foreach (string move in movesMade)
+            {
+                b.Move(move);
+            }
+            return b;
         }
     }
 }

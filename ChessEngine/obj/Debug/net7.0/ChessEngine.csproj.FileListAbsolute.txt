@@ -18,7 +18,6 @@ D:\Projects\ChessEngine\ChessEngine\bin\Debug\net7.0\ChessEngine.deps.json
 D:\Projects\ChessEngine\ChessEngine\bin\Debug\net7.0\ChessEngine.runtimeconfig.json
 D:\Projects\ChessEngine\ChessEngine\bin\Debug\net7.0\ChessEngine.dll
 D:\Projects\ChessEngine\ChessEngine\bin\Debug\net7.0\ChessEngine.pdb
-D:\Projects\ChessEngine\ChessEngine\obj\Debug\net7.0\ChessEngine.csproj.AssemblyReference.cache
 D:\Projects\ChessEngine\ChessEngine\obj\Debug\net7.0\ChessEngine.GeneratedMSBuildEditorConfig.editorconfig
 D:\Projects\ChessEngine\ChessEngine\obj\Debug\net7.0\ChessEngine.AssemblyInfoInputs.cache
 D:\Projects\ChessEngine\ChessEngine\obj\Debug\net7.0\ChessEngine.AssemblyInfo.cs

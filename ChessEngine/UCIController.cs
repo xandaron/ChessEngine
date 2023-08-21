@@ -60,6 +60,14 @@ namespace ChessEngine
                     {
                         EngineController.Perft(Int32.Parse(inputComponents[2]));
                     }
+                    else if (inputComponents[1] == "evalm")
+                    {
+                        EngineController.EvaluateMoves(Int32.Parse(inputComponents[2]));
+                    }
+                    else if (inputComponents[1] == "eval")
+                    {
+                        EngineController.EvaluatePosition();
+                    }
                     else if (inputComponents[1] == "ponder")
                     {
                         EngineController.SetState(2);
@@ -75,12 +83,16 @@ namespace ChessEngine
                     }
                     break;
                 case "moves":
-                    string legalMoves = string.Join(" ", EngineController.GetEngine().GetMoves());
+                    string legalMoves = string.Join(" ", EngineController.GetEngine().GetBoard().GetLegalMoves());
                     Console.WriteLine(legalMoves);
                     break;
                 case "captures":
                     string captures = string.Join(" ", EngineController.GetEngine().GetBoard().GetCaptures());
                     Console.WriteLine(captures);
+                    break;
+                case "checks":
+                    string checks = string.Join(" ", EngineController.GetEngine().GetBoard().GetChecks());
+                    Console.WriteLine(checks);
                     break;
                 case "quit":
                     EngineController.Quit();

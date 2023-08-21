@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "rCrBCokb+U6qRzxIoO50+fGzu7eu6OudjKbavnv4ncJGhkebvd/nPs7C3z7ovDM0mZSJlPpclowFVBfaA5jIZw==",
+  "dgSpecHash": "cO2+SsyivHojoJkPCCn7cR2UwJdqXp4gY4zP5Hgyo4LDvscoZGJqFW59nXQ4XtSBfl6HRiuCPE+Yo8TpuadeHw==",
   "success": true,
-  "projectFilePath": "C:\\Users\\xanda\\Documents\\ChessEngine\\ChessEngine\\ChessEngine.csproj",
+  "projectFilePath": "D:\\Projects\\ChessEngine\\ChessEngine\\ChessEngine.csproj",
   "expectedPackageFiles": [],
   "logs": []
 }
