@@ -1,4 +1,6 @@
 ﻿
+using System.Text.RegularExpressions;
+
 namespace ChessEngine
 {
     public class BoardController
@@ -15,9 +17,9 @@ namespace ChessEngine
         ulong knightMask;
         ulong pawnMask;
 
-        int turn;
-        int move;
-        int halfMoveTimer;
+        uint turn;
+        uint move;
+        uint halfMoveTimer;
 
         ulong enPassant;
         ulong castle;
@@ -100,7 +102,7 @@ namespace ChessEngine
                 }
             }
 
-            turn = strings[1] == "w" ? 0 : 1;
+            turn = strings[1] == "w" ? (uint)0 : 1;
             if (strings[2] != "-")
             {
                 foreach (char c in strings[2])
@@ -133,8 +135,8 @@ namespace ChessEngine
             {
                 enPassant = StringToBinary(strings[3]);
             }
-            halfMoveTimer = Int32.Parse(strings[4]);
-            move = Int32.Parse(strings[5]);
+            halfMoveTimer = uint.Parse(strings[4]);
+            move = uint.Parse(strings[5]);
         }
 
         public string GetFen() { return fen; }
@@ -143,9 +145,10 @@ namespace ChessEngine
 
         public void Move(string move)
         {
-            movesMade.Add(move);
+            StoreMove(move);
             ulong piece = StringToBinary(move[..2]);
             ulong target = StringToBinary(move[2..4]);
+
             char promotion = ' ';
             if (move.Length == 5)
             {
@@ -280,16 +283,181 @@ namespace ChessEngine
             move += turn % 2 == 0 ? 1 : 0;
         }
 
+        public void StoreMove(string move)
+        {
+            string moveString = "";
+
+            ulong piece = StringToBinary(move[..2]);
+            ulong target = StringToBinary(move[2..4]);
+
+            if ((piece & kingMask) != 0)
+            {
+                moveString += "K";
+            }
+            else if ((piece & queenMask) != 0)
+            {
+                moveString += "Q";
+            }
+            else if ((piece & rookMask) != 0)
+            {
+                moveString += "R";
+            }
+            else if ((piece & bishopMask) != 0)
+            {
+                moveString += "B";
+            }
+            else if ((piece & knightMask) != 0)
+            {
+                moveString += "N";
+            }
+            else if ((piece & pawnMask) != 0)
+            {
+                moveString += "P";
+            }
+            moveString += move[..2];
+
+            if ((target & pieceBoard) != 0 || ((piece & pawnMask) != 0 && (target & enPassant) != 0))
+            {
+                moveString += "x";
+                if ((target & queenMask) != 0)
+                {
+                    moveString += "Q";
+                }
+                else if ((target & rookMask) != 0)
+                {
+                    moveString += "R";
+                }
+                else if ((target & bishopMask) != 0)
+                {
+                    moveString += "B";
+                }
+                else if ((target & knightMask) != 0)
+                {
+                    moveString += "N";
+                }
+                else if ((target & pawnMask) != 0)
+                {
+                    moveString += "P";
+                }
+                else if ((target & enPassant) != 0)
+                {
+                    moveString += "E";
+                }
+            }
+            moveString += move[2..4];
+
+            moveString += " " + halfMoveTimer.ToString();
+            moveString += " " + castle.ToString();
+            moveString += " " + enPassant.ToString();
+
+            movesMade.Add(moveString);
+        }
+
         public void UndoMove()
         {
-            LoadFen();
-            List<string> moveList = movesMade;
-            moveList.RemoveAt(moveList.Count - 1);
-            movesMade = new();
-            foreach (string move in moveList)
+            string unmove = movesMade.Last();
+            string[] strings = unmove.Split(' ');
+            movesMade.RemoveAt(movesMade.Count - 1);
+
+            ref ulong teamMask = ref whiteMask;
+            ref ulong oTeamMask = ref blackMask;
+            if (turn % 2 == 0)
             {
-                Move(move);
+                teamMask = ref blackMask;
+                oTeamMask = ref whiteMask;
+                move -= 1;
             }
+            turn -= 1;
+
+            ulong piece;
+            bool capture = false;
+            if (unmove[3] != 'x')
+            {
+                piece = StringToBinary(unmove[3..5]);
+                pieceBoard &= ~piece;
+            }
+            else
+            {
+                piece = StringToBinary(unmove[5..7]);
+                capture = true;
+            }
+            kingMask &= ~piece;
+            queenMask &= ~piece;
+            rookMask &= ~piece;
+            bishopMask &= ~piece;
+            knightMask &= ~piece;
+            pawnMask &= ~piece;
+
+            if (capture)
+            {
+                switch (unmove[4])
+                {
+                    case 'Q':
+                        queenMask |= piece;
+                        oTeamMask |= piece;
+                        break;
+                    case 'R':
+                        rookMask |= piece;
+                        oTeamMask |= piece;
+                        break;
+                    case 'B':
+                        bishopMask |= piece;
+                        oTeamMask |= piece;
+                        break;
+                    case 'N':
+                        knightMask |= piece;
+                        oTeamMask |= piece;
+                        break;
+                    case 'P':
+                        pawnMask |= piece;
+                        oTeamMask |= piece;
+                        break;
+                    case 'E':
+                        if (turn % 2 == 0)
+                        {
+                            pawnMask |= piece >> 8;
+                            oTeamMask |= piece >> 8;
+                        }
+                        else
+                        {
+                            pawnMask |= piece << 8;
+                            oTeamMask |= piece << 8;
+                        }
+                        break;
+                }
+            }
+
+            ulong target = StringToBinary(unmove[1..3]);
+            switch (unmove[0])
+            {
+                case 'K':
+                    kingMask |= target;
+                    break;
+                case 'Q':
+                    queenMask |= target;
+                    break;
+                case 'R':
+                    rookMask |= target;
+                    break;
+                case 'B':
+                    bishopMask |= target;
+                    break;
+                case 'N':
+                    knightMask |= target;
+                    break;
+                case 'P':
+                    pawnMask |= target;
+                    break;
+            }
+
+            teamMask &= ~piece;
+            teamMask |= target;
+            
+            pieceBoard |= target;
+
+            halfMoveTimer = uint.Parse(strings[1]);
+            castle = ulong.Parse(strings[2]);
+            enPassant = ulong.Parse(strings[3]);
         }
 
         public bool IsCheck()
@@ -439,7 +607,7 @@ namespace ChessEngine
 
         public List<string> GetChecks()
         {
-            List<string> moves = GetLegalMoves(); 
+            List<string> moves = GetLegalMoves();
             List<string> checks = new();
             foreach (string move in moves)
             {
@@ -777,7 +945,7 @@ namespace ChessEngine
 
         public int GetTurn()
         {
-            return turn % 2;
+            return (int)turn % 2;
         }
 
         public BoardController Copy()
