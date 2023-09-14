@@ -1,7 +1,4 @@
-﻿
-using System.Text.RegularExpressions;
-
-namespace ChessEngine
+﻿namespace ChessEngine
 {
     public class BoardController
     {
@@ -24,16 +21,36 @@ namespace ChessEngine
         ulong enPassant;
         ulong castle;
 
-        string fen;
-        List<string> movesMade = new();
+        readonly string? fen;
+        readonly List<string> pastPositions = new();
 
         public BoardController(string fen)
         {
             this.fen = fen;
-            LoadFen();
+            LoadFen(fen);
         }
 
-        public void LoadFen()
+        public BoardController(ulong pieceBoard, ulong whiteMask, ulong kingMask, ulong queenMask, ulong rookMask, ulong bishopMask,
+            ulong knightMask, ulong pawnMask, ulong enPassant, ulong castle, uint turn, uint move, uint halfMoveTimer, List<string> pastPositions)
+        {
+            this.pieceBoard = pieceBoard;
+            this.whiteMask = whiteMask;
+            this.blackMask = pieceBoard & ~whiteMask;
+            this.kingMask = kingMask;
+            this.queenMask = queenMask;
+            this.rookMask = rookMask;
+            this.bishopMask = bishopMask;
+            this.knightMask = knightMask;
+            this.pawnMask = pawnMask;
+            this.enPassant = enPassant;
+            this.castle = castle;
+            this.turn = turn;
+            this.move = move;
+            this.halfMoveTimer = halfMoveTimer;
+            this.pastPositions = pastPositions;
+        }
+
+        public void LoadFen(string fen)
         {
             string[] strings = fen.Split(" ");
             string[] rows = strings[0].Split("/");
@@ -139,13 +156,9 @@ namespace ChessEngine
             move = uint.Parse(strings[5]);
         }
 
-        public string GetFen() { return fen; }
-
-        public List<string> GetMovesMade() { return movesMade; }
-
         public void Move(string move)
         {
-            StoreMove(move);
+            StorePosition();
             ulong piece = StringToBinary(move[..2]);
             ulong target = StringToBinary(move[2..4]);
 
@@ -239,7 +252,7 @@ namespace ChessEngine
             {
                 // p and pinned pawns is used to stop enPassant into check on the next move
                 // KPpr could result in check if the white pawn was to enPassant which is illegal
-                ulong pinnedPawns = PinnedPieces(pieceBoard & oTeamMask & pawnMask);
+                ulong pinnedPawns = PinnedPieces(oTeamMask & kingMask, pieceBoard & oTeamMask & pawnMask);
                 ulong p = ((target & 0x7F7F7F7F7F7F7F7F) << 1 | (target & 0xFEFEFEFEFEFEFEFE) >> 1) & ~pinnedPawns & pieceBoard & pawnMask & oTeamMask;
                 if ((piece << 16) == target && p != 0)
                 {
@@ -249,7 +262,6 @@ namespace ChessEngine
                 {
                     enPassant = piece >> 8;
                 }
-
 
                 pawnMask &= ~piece;
                 switch (promotion)
@@ -283,181 +295,48 @@ namespace ChessEngine
             move += turn % 2 == 0 ? 1 : 0;
         }
 
-        public void StoreMove(string move)
+        public void StorePosition()
         {
-            string moveString = "";
+            string positionString = "";
 
-            ulong piece = StringToBinary(move[..2]);
-            ulong target = StringToBinary(move[2..4]);
+            positionString += pieceBoard.ToString() + " ";
+            positionString += whiteMask.ToString() + " ";
+            positionString += kingMask.ToString() + " ";
+            positionString += queenMask.ToString() + " ";
+            positionString += rookMask.ToString() + " ";
+            positionString += bishopMask.ToString() + " ";
+            positionString += knightMask.ToString() + " ";
+            positionString += pawnMask.ToString() + " ";
+            positionString += enPassant.ToString() + " ";
+            positionString += castle.ToString() + " ";
+            positionString += turn.ToString() + " ";
+            positionString += move.ToString() + " ";
+            positionString += halfMoveTimer.ToString();
 
-            if ((piece & kingMask) != 0)
-            {
-                moveString += "K";
-            }
-            else if ((piece & queenMask) != 0)
-            {
-                moveString += "Q";
-            }
-            else if ((piece & rookMask) != 0)
-            {
-                moveString += "R";
-            }
-            else if ((piece & bishopMask) != 0)
-            {
-                moveString += "B";
-            }
-            else if ((piece & knightMask) != 0)
-            {
-                moveString += "N";
-            }
-            else if ((piece & pawnMask) != 0)
-            {
-                moveString += "P";
-            }
-            moveString += move[..2];
-
-            if ((target & pieceBoard) != 0 || ((piece & pawnMask) != 0 && (target & enPassant) != 0))
-            {
-                moveString += "x";
-                if ((target & queenMask) != 0)
-                {
-                    moveString += "Q";
-                }
-                else if ((target & rookMask) != 0)
-                {
-                    moveString += "R";
-                }
-                else if ((target & bishopMask) != 0)
-                {
-                    moveString += "B";
-                }
-                else if ((target & knightMask) != 0)
-                {
-                    moveString += "N";
-                }
-                else if ((target & pawnMask) != 0)
-                {
-                    moveString += "P";
-                }
-                else if ((target & enPassant) != 0)
-                {
-                    moveString += "E";
-                }
-            }
-            moveString += move[2..4];
-
-            moveString += " " + halfMoveTimer.ToString();
-            moveString += " " + castle.ToString();
-            moveString += " " + enPassant.ToString();
-
-            movesMade.Add(moveString);
+            pastPositions.Add(positionString);
         }
 
         public void UndoMove()
         {
-            string unmove = movesMade.Last();
-            string[] strings = unmove.Split(' ');
-            movesMade.RemoveAt(movesMade.Count - 1);
+            string position = pastPositions.Last();
+            pastPositions.RemoveAt(pastPositions.Count - 1);
 
-            ref ulong teamMask = ref whiteMask;
-            ref ulong oTeamMask = ref blackMask;
-            if (turn % 2 == 0)
-            {
-                teamMask = ref blackMask;
-                oTeamMask = ref whiteMask;
-                move -= 1;
-            }
-            turn -= 1;
+            string[] positionElements = position.Split(' ');
 
-            ulong piece;
-            bool capture = false;
-            if (unmove[3] != 'x')
-            {
-                piece = StringToBinary(unmove[3..5]);
-                pieceBoard &= ~piece;
-            }
-            else
-            {
-                piece = StringToBinary(unmove[5..7]);
-                capture = true;
-            }
-            kingMask &= ~piece;
-            queenMask &= ~piece;
-            rookMask &= ~piece;
-            bishopMask &= ~piece;
-            knightMask &= ~piece;
-            pawnMask &= ~piece;
-
-            if (capture)
-            {
-                switch (unmove[4])
-                {
-                    case 'Q':
-                        queenMask |= piece;
-                        oTeamMask |= piece;
-                        break;
-                    case 'R':
-                        rookMask |= piece;
-                        oTeamMask |= piece;
-                        break;
-                    case 'B':
-                        bishopMask |= piece;
-                        oTeamMask |= piece;
-                        break;
-                    case 'N':
-                        knightMask |= piece;
-                        oTeamMask |= piece;
-                        break;
-                    case 'P':
-                        pawnMask |= piece;
-                        oTeamMask |= piece;
-                        break;
-                    case 'E':
-                        if (turn % 2 == 0)
-                        {
-                            pawnMask |= piece >> 8;
-                            oTeamMask |= piece >> 8;
-                        }
-                        else
-                        {
-                            pawnMask |= piece << 8;
-                            oTeamMask |= piece << 8;
-                        }
-                        break;
-                }
-            }
-
-            ulong target = StringToBinary(unmove[1..3]);
-            switch (unmove[0])
-            {
-                case 'K':
-                    kingMask |= target;
-                    break;
-                case 'Q':
-                    queenMask |= target;
-                    break;
-                case 'R':
-                    rookMask |= target;
-                    break;
-                case 'B':
-                    bishopMask |= target;
-                    break;
-                case 'N':
-                    knightMask |= target;
-                    break;
-                case 'P':
-                    pawnMask |= target;
-                    break;
-            }
-
-            teamMask &= ~piece;
-            teamMask |= target;
-            
-            pieceBoard |= target;
-
-            halfMoveTimer = uint.Parse(strings[1]);
-            castle = ulong.Parse(strings[2]);
-            enPassant = ulong.Parse(strings[3]);
+            pieceBoard = ulong.Parse(positionElements[0]);
+            whiteMask = ulong.Parse(positionElements[1]);
+            blackMask = pieceBoard & ~whiteMask;
+            kingMask = ulong.Parse(positionElements[2]);
+            queenMask = ulong.Parse(positionElements[3]);
+            rookMask = ulong.Parse(positionElements[4]);
+            bishopMask = ulong.Parse(positionElements[5]);
+            knightMask = ulong.Parse(positionElements[6]);
+            pawnMask = ulong.Parse(positionElements[7]);
+            enPassant = ulong.Parse(positionElements[8]);
+            castle = ulong.Parse(positionElements[9]);
+            turn = uint.Parse(positionElements[10]);
+            move = uint.Parse(positionElements[11]);
+            halfMoveTimer = uint.Parse(positionElements[12]);
         }
 
         public bool IsCheck()
@@ -475,134 +354,168 @@ namespace ChessEngine
             return false;
         }
 
-        public ulong GetWhitePieces() { return whiteMask; }
-
-        public ulong GetBlackPieces() { return blackMask; }
-
-        public ulong GetPawns() { return pawnMask; }
-
-        public ulong GetKnights() { return knightMask; }
-
-        public ulong GetBishops() { return bishopMask; }
-
-        public ulong GetRooks() { return rookMask; }
-
-        public ulong GetQueens() { return queenMask; }
-
-        public ulong GetKings() { return kingMask; }
-
         public List<string> GetLegalMoves()
         {
-            ulong pieces = pieceBoard;
-            if (turn % 2 == 0)
-            {
-                pieces &= whiteMask;
-            }
-            else
-            {
-                pieces &= blackMask;
-            }
+            ulong pieces = turn % 2 == 0 ? whiteMask : blackMask;
 
             List<string> legalMoves = new();
-            ulong oPieces = pieceBoard & ~pieces;
-            ulong oAttacks = GetAttacks(oPieces);
+
             ulong king = pieces & kingMask;
             ulong checks = GetAttacked(king) & ~pieces;
-            int numberOfChecks = (int)ulong.PopCount(checks);
-            ulong pinnedPieces = PinnedPieces(pieces & ~kingMask);
 
-            // Legal king moves
-            ulong temp = checks;
-            while (temp != 0)
-            {
-                ulong check = (ulong)1 << (int)ulong.TrailingZeroCount(temp);
-                if ((check & knightMask) == 0)
-                {
-                    oAttacks |= AttackLine(king, check) & ~check;
-                }
-                temp &= ~check;
-            }
-            ulong moves;
-            moves = KingAttacks(king) & ~(pieces | oAttacks);
-            while (moves > 0)
-            {
-                ulong move = (ulong)1 << (int)ulong.TrailingZeroCount(moves);
-                legalMoves.Add(BinaryToString(king) + BinaryToString(move));
-                moves &= ~move;
-            }
+            uint numberOfChecks = (uint)ulong.PopCount(checks);
+            ulong pinnedPieces = PinnedPieces(king, pieces & ~king);
 
-            // If checked once then block/capture the checking piece
-            if (numberOfChecks == 1)
+            ulong opponentPieces = pieceBoard & ~pieces;
+            ulong opponentAttacks = GetAttacks(opponentPieces);
+
+            // Have to move king
+            if (numberOfChecks == 2)
             {
-                ulong stopCheck = checks | (AttackLine(king, checks) & GetAttacks(checks) & QueenAttacks(pieces & kingMask));
-                ulong checkPieces = pieces & ~pinnedPieces & ~king;
-                while (checkPieces != 0)
+                ulong attackLines = 0;
+                while (checks > 0)
                 {
-                    ulong piece = (ulong)1 << (int)ulong.TrailingZeroCount(checkPieces);
-                    moves = (stopCheck & (GetMoves(piece))) | (PawnAttacks(piece & pawnMask) & checks);
-                    if (moves != 0)
-                    {
-                        legalMoves.AddRange(MoveList(piece, moves));
-                    }
-                    checkPieces &= ~piece;
+                    ulong check = (ulong)1 << (int)ulong.TrailingZeroCount(checks);
+                    attackLines |= AttackLine(king, check) & ~check;
+                    checks &= ~check;
                 }
 
-                // En passant out of check
-                if ((PawnAttacks(pieces & pawnMask) & enPassant & (((checks & 0x00FFFFFFFFFFFFFF) << 8) | ((checks & 0xFFFFFFFFFFFFFF00) >> 8))) != 0)
+                legalMoves.AddRange(MoveList(king, KingAttacks(king) & ~(pieces | opponentAttacks | attackLines)));
+            }
+            // Block checks or move king
+            else if (numberOfChecks == 1)
+            {
+                legalMoves.AddRange(MoveList(king, KingAttacks(king) & ~(pieces | opponentAttacks | ((checks & pawnMask) == 0 ? (AttackLine(king, checks) & ~checks) : 0))));
+
+                ulong block = (AttackLine(king, checks) & QueenAttacks(king) & QueenAttacks(checks)) | checks;
+                pieces &= ~(pinnedPieces | king);
+                while (pieces != 0)
                 {
-                    if ((((checks & 0x7F7F7F7F7F7F7F7F) << 1) & pieces & pawnMask & ~pinnedPieces) != 0)
-                    {
-                        legalMoves.AddRange(MoveList(((checks & 0x7F7F7F7F7F7F7F7F) << 1) & pieces & pawnMask, enPassant));
-                    }
-                    if ((((checks & 0xFEFEFEFEFEFEFEFE) >> 1) & pieces & pawnMask & ~pinnedPieces) != 0)
-                    {
-                        legalMoves.AddRange(MoveList(((checks & 0xFEFEFEFEFEFEFEFE) >> 1) & pieces & pawnMask, enPassant));
-                    }
+                    ulong piece = (ulong)1 << (int)ulong.TrailingZeroCount(pieces);
+                    legalMoves.AddRange(MoveList(piece, (block | ((piece & pawnMask) == 0 ? 0 : enPassant)) & GetMoves(piece)));
+                    pieces &= ~piece;
                 }
             }
-
-            // If not in check then add other legal piece moves
-            if (numberOfChecks == 0)
+            // Move any not pinned piece
+            else if (numberOfChecks == 0)
             {
-                ulong checkPieces = pieces & ~pinnedPieces & ~king;
-                while (checkPieces != 0)
-                {
-                    ulong piece = (ulong)1 << (int)ulong.TrailingZeroCount(checkPieces);
-                    moves = (GetMoves(piece) & ~pieces) | (PawnAttacks(piece & pawnMask) & (oPieces | enPassant));
-                    if (moves != 0)
-                    {
-                        legalMoves.AddRange(MoveList(piece, moves));
-                    }
-                    checkPieces &= ~piece;
-                }
+                legalMoves.AddRange(MoveList(king, KingAttacks(king) & ~(pieces | opponentAttacks)));
 
+                ulong temp = pieces & ~(pinnedPieces | king);
+                while (temp != 0)
+                {
+                    ulong piece = (ulong)1 << (int)ulong.TrailingZeroCount(temp);
+                    legalMoves.AddRange(MoveList(piece, GetMoves(piece) & ~pieces));
+                    temp &= ~piece;
+                }
+                // pinned pieces can capture their pinner or move along direction of the pin
                 while (pinnedPieces != 0)
                 {
                     ulong piece = (ulong)1 << (int)ulong.TrailingZeroCount(pinnedPieces);
-                    moves = (GetMoves(piece) & AttackLine(king, piece) & ~king) | (PawnAttacks(piece & pawnMask) & AttackLine(king, piece) & oPieces);
-                    if (moves != 0)
-                    {
-                        legalMoves.AddRange(MoveList(piece, moves));
-                    }
+                    legalMoves.AddRange(MoveList(piece, GetMoves(piece) & AttackLine(piece, king) & ~king));
                     pinnedPieces &= ~piece;
                 }
-
-                if ((king & castle) != 0)
+                ulong rooks = pieces & rookMask & castle;
+                if ((king & castle) != 0 && rooks != 0)
                 {
-                    ulong s = king << 1 | king << 2;
-                    ulong l = king >> 1 | king >> 2;
-                    if (((king << 3) & castle) != 0 && (king & RookAttacks(king << 3)) != 0 && (s & oAttacks) == 0)
+                    if ((0x0100000000000001 & rooks) != 0 && (((king >> 1 | king >> 2) & (opponentAttacks | pieceBoard)) | (king >> 3 & pieceBoard)) == 0)
                     {
-                        legalMoves.Add(BinaryToString(king) + BinaryToString(king << 2));
+                        legalMoves.AddRange(MoveList(king, king >> 2));
                     }
-                    if (((king >> 4) & castle) != 0 && (king & RookAttacks(king >> 4)) != 0 && (l & oAttacks) == 0)
+                    if ((0x8000000000000080 & rooks) != 0 && ((king << 1 | king << 2) & (opponentAttacks | pieceBoard)) == 0)
                     {
-                        legalMoves.Add(BinaryToString(king) + BinaryToString(king >> 2));
+                        legalMoves.AddRange(MoveList(king, king << 2));
                     }
                 }
             }
-
             return legalMoves;
+        }
+
+        private ulong PinnedPieces(ulong king, ulong pieces)
+        {
+            ulong pinnedPieces = 0;
+            while (pieces != 0)
+            {
+                ulong piece = (ulong)1 << (int)ulong.TrailingZeroCount(pieces);
+                pinnedPieces |= Pinned(king, piece);
+                pieces &= ~piece;
+            }
+            return pinnedPieces;
+        }
+
+        private ulong Pinned(ulong target, ulong piece)
+        {
+            ulong pinLine = AttackLine(target, piece);
+            pinLine &= QueenAttacks(piece);
+
+            if ((pinLine & target) == 0) { return 0; }
+
+            ulong opponentPieces = pieceBoard & ((piece & whiteMask) != 0 ? blackMask: whiteMask);
+            ulong opponentPiece = opponentPieces & pinLine & (queenMask | rookMask | bishopMask);
+
+            if (opponentPiece == 0 || (GetAttacks(opponentPiece) & piece) == 0) { return 0; }
+
+            return piece;
+        }
+
+        private static ulong AttackLine(ulong p1, ulong p2)
+        {
+            int pieceX = (int)ulong.TrailingZeroCount(p2) % 8;
+            int pieceY = (int)ulong.TrailingZeroCount(p2) / 8;
+            int kingX = (int)ulong.TrailingZeroCount(p1) % 8;
+            int kingY = (int)ulong.TrailingZeroCount(p1) / 8;
+
+            ulong line = 0;
+
+            if (kingX == pieceX)
+            {
+                line = (ulong)0x0101010101010101 << kingX;
+            }
+            else if (kingY == pieceY)
+            {
+                line = (ulong)0x00000000000000FF << (kingY * 8);
+            }
+            else
+            {
+                int m = (pieceY - kingY) / (pieceX - kingX);
+                if (m != 1 && m != -1)
+                {
+                    return 0;
+                }
+                int c = pieceY - m * pieceX;
+                for (int i = 0; i < 8; i++)
+                {
+                    int y = m * i + c;
+                    if (y >= 0 && y < 8)
+                    {
+                        line |= (ulong)1 << i + (8 * y);
+                    }
+                }
+            }
+            return line;
+        }
+
+        private List<string> MoveList(ulong piece, ulong moves)
+        {
+            List<string> list = new();
+            while (moves != 0)
+            {
+                ulong move = (ulong)1 << (int)ulong.TrailingZeroCount(moves);
+                string moveString = BinaryToString(piece) + BinaryToString(move);
+                if ((piece & pawnMask) != 0 && (move & 0xFF000000000000FF) != 0)
+                {
+                    list.Add(moveString + 'q');
+                    list.Add(moveString + 'r');
+                    list.Add(moveString + 'b');
+                    list.Add(moveString + 'n');
+                }
+                else
+                {
+                    list.Add(moveString);
+                }
+                moves &= ~move;
+            }
+            return list;
         }
 
         public List<string> GetChecks()
@@ -647,119 +560,6 @@ namespace ChessEngine
             return captures;
         }
 
-        private List<string> MoveList(ulong piece, ulong moves)
-        {
-            List<string> list = new();
-            while (moves != 0)
-            {
-                ulong move = (ulong)1 << (int)ulong.TrailingZeroCount(moves);
-                string moveString = BinaryToString(piece) + BinaryToString(move);
-                if ((piece & pawnMask) != 0 && (move & 0xFF000000000000FF) != 0)
-                {
-                    list.Add(moveString + 'q');
-                    list.Add(moveString + 'r');
-                    list.Add(moveString + 'b');
-                    list.Add(moveString + 'n');
-                }
-                else
-                {
-                    list.Add(moveString);
-                }
-                moves &= ~move;
-            }
-            return list;
-        }
-
-        private ulong PinnedPieces(ulong pieces)
-        {
-            ulong pinnedPieces = 0;
-            while (pieces != 0)
-            {
-                ulong piece = (ulong)1 << (int)ulong.TrailingZeroCount(pieces);
-                pinnedPieces |= Pinned(piece);
-                pieces &= ~piece;
-            }
-            return pinnedPieces;
-        }
-
-        private ulong Pinned(ulong piece)
-        {
-            ulong teamMask = 0;
-            if ((piece & whiteMask) != 0)
-            {
-                teamMask = whiteMask;
-            }
-            else if ((piece & blackMask) != 0)
-            {
-                teamMask = blackMask;
-            }
-            ulong oPieces = pieceBoard & ~teamMask;
-            ulong pieceLines = QueenAttacks(piece);
-            ulong king = kingMask & teamMask;
-
-            if ((pieceLines & king) == 0)
-            {
-                return 0;
-            }
-
-            int pieceX = (int)ulong.TrailingZeroCount(piece) % 8;
-            int pieceY = (int)ulong.TrailingZeroCount(piece) / 8;
-            int kingX = (int)ulong.TrailingZeroCount(king) % 8;
-            int kingY = (int)ulong.TrailingZeroCount(king) / 8;
-
-            ulong line = AttackLine(king, piece);
-            ulong checkPieces;
-
-            if (kingX == pieceX || kingY == pieceY)
-            {
-                checkPieces = oPieces & (queenMask | rookMask);
-            }
-            else
-            {
-                checkPieces = oPieces & (queenMask | bishopMask);
-            }
-
-            if ((line & pieceLines & checkPieces) == 0)
-            {
-                return 0;
-            }
-
-            return piece;
-        }
-
-        private static ulong AttackLine(ulong p1, ulong p2)
-        {
-            int pieceX = (int)ulong.TrailingZeroCount(p2) % 8;
-            int pieceY = (int)ulong.TrailingZeroCount(p2) / 8;
-            int kingX = (int)ulong.TrailingZeroCount(p1) % 8;
-            int kingY = (int)ulong.TrailingZeroCount(p1) / 8;
-
-            ulong line = 0;
-
-            if (kingX == pieceX)
-            {
-                line = (ulong)0x0101010101010101 << kingX;
-            }
-            else if (kingY == pieceY)
-            {
-                line = (ulong)0x00000000000000FF << (kingY * 8);
-            }
-            else
-            {
-                int m = (pieceY - kingY) / (pieceX - kingX);
-                int c = pieceY - m * pieceX;
-                for (int i = 0; i < 8; i++)
-                {
-                    int y = m * i + c;
-                    if (y >= 0 && y < 8)
-                    {
-                        line |= (ulong)1 << i + (8 * y);
-                    }
-                }
-            }
-            return line;
-        }
-
         private ulong GetAttacked(ulong tile)
         {
             ulong attacks = 0;
@@ -780,14 +580,14 @@ namespace ChessEngine
 
         private ulong GetMoves(ulong pieces)
         {
-            ulong attacks = 0;
-            attacks |= PawnPushes(pieces & pawnMask);
-            attacks |= KnightAttacks(pieces & knightMask);
-            attacks |= BishopAttacks(pieces & bishopMask);
-            attacks |= RookAttacks(pieces & rookMask);
-            attacks |= QueenAttacks(pieces & queenMask);
-            attacks |= KingAttacks(pieces & kingMask);
-            return attacks;
+            ulong Moves = 0;
+            Moves |= PawnMoves(pieces & pawnMask);
+            Moves |= KnightAttacks(pieces & knightMask);
+            Moves |= BishopAttacks(pieces & bishopMask);
+            Moves |= RookAttacks(pieces & rookMask);
+            Moves |= QueenAttacks(pieces & queenMask);
+            Moves |= KingAttacks(pieces & kingMask);
+            return Moves;
         }
 
         private ulong GetAttacks(ulong pieces)
@@ -828,18 +628,22 @@ namespace ChessEngine
             return attacks;
         }
 
-        private ulong PawnPushes(ulong pieces)
+        private ulong PawnMoves(ulong pawns)
         {
             ulong moves = 0;
-            if ((pieces & whiteMask) != 0)
+            if ((pawns & whiteMask) != 0)
             {
-                moves |= (pieces << 8) & ~pieceBoard;
+                moves |= (pawns << 8) & ~pieceBoard;
                 moves |= ((moves & 0x0000000000FF0000) << 8) & ~pieceBoard;
+                moves |= (blackMask | enPassant) & (pawns & 0x007F7F7F7F7F7F7F) << 9;
+                moves |= (blackMask | enPassant) & (pawns & 0x00FEFEFEFEFEFEFE) << 7;
             }
-            else if ((pieces & blackMask) != 0)
+            else if ((pawns & blackMask) != 0)
             {
-                moves |= (pieces >> 8) & ~pieceBoard;
+                moves |= (pawns >> 8) & ~pieceBoard;
                 moves |= ((moves & 0x0000FF0000000000) >> 8) & ~pieceBoard;
+                moves |= (whiteMask | enPassant) & (pawns & 0xFEFEFEFEFEFEFE00) >> 9;
+                moves |= (whiteMask | enPassant) & (pawns & 0x7F7F7F7F7F7F7F00) >> 7;
             }
             return moves;
         }
@@ -847,12 +651,17 @@ namespace ChessEngine
         private ulong PawnAttacks(ulong pawns)
         {
             ulong attacks = 0;
-            // White pawns
-            attacks |= (pawns & whiteMask & 0x007F7F7F7F7F7F7F) << 9;
-            attacks |= (pawns & whiteMask & 0x00FEFEFEFEFEFEFE) << 7;
-            // Black pawns
-            attacks |= (pawns & blackMask & 0xFEFEFEFEFEFEFE00) >> 9;
-            attacks |= (pawns & blackMask & 0x7F7F7F7F7F7F7F00) >> 7;
+            if ((pawns & whiteMask) != 0)
+            {
+                attacks |= (pawns & 0x007F7F7F7F7F7F7F) << 9;
+                attacks |= (pawns & 0x00FEFEFEFEFEFEFE) << 7;
+            }
+            else
+            {
+                // Black pawns
+                attacks |= (pawns & 0xFEFEFEFEFEFEFE00) >> 9;
+                attacks |= (pawns & 0x7F7F7F7F7F7F7F00) >> 7;
+            }
             return attacks;
         }
 
@@ -929,7 +738,7 @@ namespace ChessEngine
         }
 
         // Source: https://www.chessprogramming.org/King_Pattern
-        private ulong KingAttacks(ulong king)
+        private static ulong KingAttacks(ulong king)
         {
             ulong attacks = king | ((king & 0x7F7F7F7F7F7F7F7F) << 1) | ((king & 0xFEFEFEFEFEFEFEFE) >> 1);
             attacks |= ((attacks & 0x00FFFFFFFFFFFFFF) << 8) | ((attacks & 0xFFFFFFFFFFFFFF00) >> 8);
@@ -943,19 +752,22 @@ namespace ChessEngine
             return new string(new char[] { (char)((index % 8) + 'a'), (char)((index / 8) + '1') });
         }
 
-        public int GetTurn()
-        {
-            return (int)turn % 2;
-        }
-
         public BoardController Copy()
         {
-            BoardController b = new(fen);
-            foreach (string move in movesMade)
-            {
-                b.Move(move);
-            }
-            return b;
+            return new(pieceBoard, whiteMask, kingMask, queenMask, rookMask, bishopMask,
+                knightMask, pawnMask, enPassant, castle, turn, move, halfMoveTimer, pastPositions);
         }
+
+        public int GetTurn() { return (int)turn % 2; }
+        public ulong GetWhitePieces() { return whiteMask; }
+        public ulong GetBlackPieces() { return blackMask; }
+        public ulong GetPawns() { return pawnMask; }
+        public ulong GetKnights() { return knightMask; }
+        public ulong GetBishops() { return bishopMask; }
+        public ulong GetRooks() { return rookMask; }
+        public ulong GetQueens() { return queenMask; }
+        public ulong GetKings() { return kingMask; }
+        public string? GetFen() { return fen; }
+        public List<string> GetPastPositions() { return pastPositions; }
     }
 }
