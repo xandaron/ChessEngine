@@ -11,6 +11,7 @@
         private static Thread uciThreadRead = new(UCIController.ReadLoop);
         private static Thread uciThreadWrite = new(UCIController.WriteLoop);
         private static List<Thread> evalThreads = new();
+        private static int perftCount = 0;
 
         static void Main(string[] args)
         {
@@ -24,8 +25,8 @@
                     case "--grd":
                         engine = new Greedy();
                         break;
-                    case "--smt":
-                        engine = new Smart();
+                    case "--mim":
+                        engine = new MiniMax();
                         break;
                     default:
                         throw new Exception("Invalid engine parameter");
@@ -67,15 +68,31 @@
 
         public static void Perft(int depth)
         {
-            List<string> moves = engine.GetBoard().GetLegalMoves();
+            BoardController board = engine.GetBoard();
+            List<string> moves = board.GetLegalMoves();
+            perftCount = 0;
+            evalThreads = new();
             foreach (string move in moves)
             {
-                engine.GetBoard().Move(move);
-                int count = engine.Perft(depth - 1);
-                UCIController.AddOutput($"{move}: {count}");
-                engine.GetBoard().UndoMove();
+                board.Move(move);
+                BoardController b = board.Copy();
+                Thread t = new(() =>
+                {
+                    int count = engine.Perft(b, depth - 1);
+                    AddPerftCount(count);
+                    UCIController.AddOutput($"{move}: {count}");
+                });
+                board.UndoMove();
+                t.Start();
+                evalThreads.Add(t);
             }
+
+            while (evalThreads.Any(x => x.IsAlive)) { }
+
+            UCIController.AddOutput($"\nNodes searched: {perftCount}\n");
         }
+
+        public static void AddPerftCount(int count) { perftCount += count; }
 
         public static void EvaluatePosition()
         {
@@ -120,18 +137,18 @@
 
         public void NewGame(string fen) { board = new(fen); }
 
-        public int Perft(int depth)
+        public int Perft(int depth) { return Perft(board, depth); }
+
+        public int Perft(BoardController board, int depth)
         {
             List<string> moves = board.GetLegalMoves();
-            if (depth == 1)
-            {
-                return moves.Count();
-            }
+            if (depth == 1) { return moves.Count; }
+
             int count = 0;
             foreach (string move in moves)
             {
                 board.Move(move);
-                count += Perft(depth - 1);
+                count += Perft(board, depth - 1);
                 board.UndoMove();
             }
             return count;
@@ -271,9 +288,9 @@
         }
     }
 
-    public class Smart : Engine
+    public class MiniMax : Engine
     {
-        public Smart()
+        public MiniMax()
         {
             _name = "Smart";
         }
@@ -297,26 +314,16 @@
             {
                 bestMoveScore = double.MaxValue;
             }
-            List<Thread> searchThreads = new();
+            List<Thread> threads = new();
             foreach (string move in moves)
             {
-                Thread t = new(() => { AnalyseMove(board.Copy(), move, 5); });
+                Thread t = new(() => AnalyseMove(board.Copy(), move, 5));
                 t.Start();
-                searchThreads.Add(t);
+                threads.Add(t);
             }
 
-            while (searchFinished == false)
-            {
-                searchFinished = true;
-                foreach (Thread t in searchThreads)
-                {
-                    if (t.IsAlive)
-                    {
-                        searchFinished = false;
-                        break;
-                    }
-                }
-            }
+            while (threads.Any(x => x.IsAlive)) { }
+            searchFinished = true;
         }
 
         public override double AnalyseMove(BoardController b, string move, int depth)
@@ -326,7 +333,7 @@
             double evaluation = AnalysePosition(b, depth - 1);
             b.UndoMove();
 
-            if ((turn == 0 && evaluation > bestMoveScore) || (turn == 1 && evaluation < bestMoveScore))
+            if ((turn == 0 && evaluation > bestMoveScore) || (turn == 1 && evaluation < bestMoveScore) || currentBestMove == "")
             {
                 bestMoveScore = evaluation;
                 currentBestMove = move;
@@ -364,17 +371,7 @@
 
             if (depth <= 1)
             {
-                if (!b.IsCheck())
-                {
-                    return EvaluatePosition(b);
-                    /*evaluation = EvaluatePosition(b);
-                    moves = b.GetCaptures();
-                    // moves.AddRange(board.GetChecks());
-                    if (depth <= -5)
-                    {
-                        return evaluation;
-                    }*/
-                }
+                return EvaluatePosition(b);
             }
 
             foreach (string move in moves)
@@ -398,7 +395,7 @@
         {
             double evaluation = 0;
             evaluation += PieceScore(b) * EvaluationConstants.PIECE_WEIGHT;
-            evaluation += PositionScore(b) * EvaluationConstants.POSITION_WEIGHT;
+            // evaluation += PositionScore(b) * EvaluationConstants.POSITION_WEIGHT;
             return evaluation;
         }
 

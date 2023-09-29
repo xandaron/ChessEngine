@@ -21,8 +21,8 @@
         ulong enPassant;
         ulong castle;
 
-        readonly string? fen;
-        readonly List<string> pastPositions = new();
+        string? fen;
+        List<string> pastPositions = new();
 
         public BoardController(string fen)
         {
@@ -319,8 +319,6 @@
         public void UndoMove()
         {
             string position = pastPositions.Last();
-            pastPositions.RemoveAt(pastPositions.Count - 1);
-
             string[] positionElements = position.Split(' ');
 
             pieceBoard = ulong.Parse(positionElements[0]);
@@ -337,6 +335,8 @@
             turn = uint.Parse(positionElements[10]);
             move = uint.Parse(positionElements[11]);
             halfMoveTimer = uint.Parse(positionElements[12]);
+
+            pastPositions = new(pastPositions.Take(pastPositions.Count - 1));
         }
 
         public bool IsCheck()
@@ -754,7 +754,7 @@
 
         public BoardController Copy()
         {
-            return new(pieceBoard, whiteMask, kingMask, queenMask, rookMask, bishopMask,
+            return new BoardController(pieceBoard, whiteMask, kingMask, queenMask, rookMask, bishopMask,
                 knightMask, pawnMask, enPassant, castle, turn, move, halfMoveTimer, pastPositions);
         }
 

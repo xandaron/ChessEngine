@@ -1,9 +1,5 @@
 {
   "profiles": {
-    "Smart": {
-      "commandName": "Project",
-      "commandLineArgs": "--smt"
-    },
     "RNG": {
       "commandName": "Project",
       "commandLineArgs": "--rng"
@@ -11,6 +7,10 @@
     "Greed": {
       "commandName": "Project",
       "commandLineArgs": "--grd"
+    },
+    "MiniMax": {
+      "commandName": "Project",
+      "commandLineArgs": "--mim"
     }
   }
 }
