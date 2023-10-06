@@ -60,6 +60,10 @@ namespace ChessEngine
                     {
                         EngineController.Perft(Int32.Parse(inputComponents[2]));
                     }
+                    else if (inputComponents[1] == "line")
+                    {
+                        EngineController.Line(Int32.Parse(inputComponents[2]));
+                    }
                     else if (inputComponents[1] == "evalm")
                     {
                         EngineController.EvaluateMoves(Int32.Parse(inputComponents[2]));

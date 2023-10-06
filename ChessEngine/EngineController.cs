@@ -39,7 +39,7 @@
             while (true)
             {
                 engine.Update(state);
-                if (engine.SearchFinished)
+                if (state == 1 && engine.SearchFinished)
                 {
                     UCIController.AddOutput($"bestmove {engine.CurrentBestMove}");
                     state = 0;
@@ -92,6 +92,26 @@
             UCIController.AddOutput($"\nNodes searched: {perftCount}\n");
         }
 
+        public static void Line(int depth)
+        {
+            BoardController board = engine.GetBoard().Copy();
+            List<string> line = new();
+            while (depth >= 1)
+            {
+                engine.SearchBestMove(board, depth);
+                while (!engine.SearchFinished) { }
+                board.Move(engine.CurrentBestMove);
+                line.Add(engine.CurrentBestMove);
+                depth--;
+            }
+            string lineString = "";
+            foreach (string move in line)
+            {
+                lineString += move + " ";
+            }
+            UCIController.AddOutput(lineString);
+        }
+
         public static void AddPerftCount(int count) { perftCount += count; }
 
         public static void EvaluatePosition()
@@ -105,16 +125,18 @@
             evalThreads = new();
             foreach (string move in moves)
             {
-                Thread t = new(() => { EvaluateMove(move, depth); });
+                Thread t = new(() => 
+                {
+                    double eval = engine.AnalyseMove(engine.GetBoard().Copy(), move, depth);
+                    UCIController.AddOutput($"{move}: {eval}");
+                });
                 t.Start();
                 evalThreads.Add(t);
             }
-        }
 
-        public static void EvaluateMove(string move, int depth)
-        {
-            double eval = engine.AnalyseMove(engine.GetBoard().Copy(), move, depth);
-            UCIController.AddOutput($"{move}: {eval}");
+            while (evalThreads.Any(x => x.IsAlive)) { }
+
+            UCIController.AddOutput($"\nDone!\n");
         }
 
         public static void SetTimeControls(int wt, int bt, int wi, int bi)
@@ -152,6 +174,11 @@
                 board.UndoMove();
             }
             return count;
+        }
+
+        public virtual void SearchBestMove(BoardController b, int depth)
+        {
+            currentBestMove = board.GetLegalMoves()[0];
         }
 
         public string Name
@@ -299,14 +326,15 @@
         {
             if (state == 1)
             {
-                SearchBestMove();
+                SearchBestMove(board, 5);
             }
         }
 
-        private void SearchBestMove()
+        public override void SearchBestMove(BoardController b, int depth)
         {
-            List<string> moves = board.GetLegalMoves();
-            if (board.GetTurn() == 0)
+            searchFinished = false;
+            List<string> moves = b.GetLegalMoves();
+            if (b.GetTurn() == 0)
             {
                 bestMoveScore = double.MinValue;
             }
@@ -317,7 +345,7 @@
             List<Thread> threads = new();
             foreach (string move in moves)
             {
-                Thread t = new(() => AnalyseMove(board.Copy(), move, 5));
+                Thread t = new(() => AnalyseMove(b.Copy(), move, depth));
                 t.Start();
                 threads.Add(t);
             }
@@ -409,11 +437,11 @@
             ulong rooks = b.GetRooks();
             ulong queens = b.GetQueens();
             double value = 0;
-            value += (ulong.PopCount(whitePieces & pawns) - ulong.PopCount(blackPieces & pawns)) * EvaluationConstants.PAWN_VALUE;
-            value += (ulong.PopCount(whitePieces & knights) - ulong.PopCount(blackPieces & knights)) * EvaluationConstants.KNIGHT_VALUE;
-            value += (ulong.PopCount(whitePieces & bishops) - ulong.PopCount(blackPieces & bishops)) * EvaluationConstants.BISHOP_VALUE;
-            value += (ulong.PopCount(whitePieces & rooks) - ulong.PopCount(blackPieces & rooks)) * EvaluationConstants.ROOK_VALUE;
-            value += (ulong.PopCount(whitePieces & queens) - ulong.PopCount(blackPieces & queens)) * EvaluationConstants.QUEEN_VALUE;
+            value += ((int)ulong.PopCount(whitePieces & pawns) - (int)ulong.PopCount(blackPieces & pawns)) * EvaluationConstants.PAWN_VALUE;
+            value += ((int)ulong.PopCount(whitePieces & knights) - (int)ulong.PopCount(blackPieces & knights)) * EvaluationConstants.KNIGHT_VALUE;
+            value += ((int)ulong.PopCount(whitePieces & bishops) - (int)ulong.PopCount(blackPieces & bishops)) * EvaluationConstants.BISHOP_VALUE;
+            value += ((int)ulong.PopCount(whitePieces & rooks) - (int)ulong.PopCount(blackPieces & rooks)) * EvaluationConstants.ROOK_VALUE;
+            value += ((int)ulong.PopCount(whitePieces & queens) - (int)ulong.PopCount(blackPieces & queens)) * EvaluationConstants.QUEEN_VALUE;
             return value;
         }
 
