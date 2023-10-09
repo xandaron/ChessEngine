@@ -11,6 +11,10 @@
     "MiniMax": {
       "commandName": "Project",
       "commandLineArgs": "--mim"
+    },
+    "AlphaBeta": {
+      "commandName": "Project",
+      "commandLineArgs": "--abp"
     }
   }
 }

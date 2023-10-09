@@ -28,6 +28,9 @@
                     case "--mim":
                         engine = new MiniMax();
                         break;
+                    case "--abp":
+                        engine = new AlphaBeta();
+                        break;
                     default:
                         throw new Exception("Invalid engine parameter");
                 }
@@ -125,7 +128,7 @@
             evalThreads = new();
             foreach (string move in moves)
             {
-                Thread t = new(() => 
+                Thread t = new(() =>
                 {
                     double eval = engine.AnalyseMove(engine.GetBoard().Copy(), move, depth);
                     UCIController.AddOutput($"{move}: {eval}");
@@ -151,6 +154,7 @@
     public abstract class Engine
     {
         protected string _name = "Engine";
+        protected int searchDepth = 4;
         protected BoardController board = new("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
         protected bool searchFinished = false;
         protected string currentBestMove = "";
@@ -176,36 +180,15 @@
             return count;
         }
 
-        public virtual void SearchBestMove(BoardController b, int depth)
+        public void Update(int state)
         {
-            currentBestMove = board.GetLegalMoves()[0];
-        }
-
-        public string Name
-        {
-            get
+            if (state == 1)
             {
-                return _name;
+                SearchBestMove(board, searchDepth);
             }
         }
 
-        public bool SearchFinished
-        {
-            get
-            {
-                return searchFinished;
-            }
-        }
-
-        public string CurrentBestMove
-        {
-            get
-            {
-                return currentBestMove;
-            }
-        }
-
-        public abstract void Update(int state);
+        public abstract void SearchBestMove(BoardController b, int depth);
 
         public void ResetSearch()
         {
@@ -243,9 +226,12 @@
             return EvaluatePosition(board);
         }
 
-        public virtual double EvaluatePosition(BoardController b)
+        public double EvaluatePosition(BoardController b)
         {
-            return 0;
+            double evaluation = 0;
+            evaluation += PieceScore(b) * EvaluationConstants.PIECE_WEIGHT;
+            evaluation += PositionScore(b) * EvaluationConstants.POSITION_WEIGHT;
+            return evaluation * (b.GetTurn() == 0 ? 1 : -1);
         }
 
         public double PieceScore()
@@ -253,181 +239,7 @@
             return PieceScore(board);
         }
 
-        public virtual double PieceScore(BoardController b)
-        {
-            return 0;
-        }
-
-        public double PositionScore()
-        {
-            return PositionScore(board);
-        }
-
-        public virtual double PositionScore(BoardController b)
-        {
-            return 0;
-        }
-    }
-
-    public class RNGEngine : Engine
-    {
-        public RNGEngine()
-        {
-            _name = "EngineRNG";
-        }
-
-        public override void Update(int state)
-        {
-            if (state == 1)
-            {
-                List<string> moves = board.GetLegalMoves();
-                int index = random.Next(moves.Count);
-                string move = moves[index];
-                currentBestMove = move;
-                searchFinished = true;
-            }
-        }
-    }
-
-    public class Greedy : Engine
-    {
-        public Greedy()
-        {
-            _name = "Greedy";
-        }
-
-        public override void Update(int state)
-        {
-            if (state == 1)
-            {
-                List<string> captures = board.GetCaptures();
-                if (captures.Count > 0)
-                {
-                    currentBestMove = captures[random.Next(captures.Count)];
-                }
-                else
-                {
-                    List<string> legalMoves = board.GetLegalMoves();
-                    currentBestMove = legalMoves[random.Next(legalMoves.Count())];
-                }
-                searchFinished = true;
-            }
-        }
-    }
-
-    public class MiniMax : Engine
-    {
-        public MiniMax()
-        {
-            _name = "Smart";
-        }
-
-        public override void Update(int state)
-        {
-            if (state == 1)
-            {
-                SearchBestMove(board, 5);
-            }
-        }
-
-        public override void SearchBestMove(BoardController b, int depth)
-        {
-            searchFinished = false;
-            List<string> moves = b.GetLegalMoves();
-            if (b.GetTurn() == 0)
-            {
-                bestMoveScore = double.MinValue;
-            }
-            else
-            {
-                bestMoveScore = double.MaxValue;
-            }
-            List<Thread> threads = new();
-            foreach (string move in moves)
-            {
-                Thread t = new(() => AnalyseMove(b.Copy(), move, depth));
-                t.Start();
-                threads.Add(t);
-            }
-
-            while (threads.Any(x => x.IsAlive)) { }
-            searchFinished = true;
-        }
-
-        public override double AnalyseMove(BoardController b, string move, int depth)
-        {
-            int turn = b.GetTurn();
-            b.Move(move);
-            double evaluation = AnalysePosition(b, depth - 1);
-            b.UndoMove();
-
-            if ((turn == 0 && evaluation > bestMoveScore) || (turn == 1 && evaluation < bestMoveScore) || currentBestMove == "")
-            {
-                bestMoveScore = evaluation;
-                currentBestMove = move;
-            }
-
-            return evaluation;
-        }
-
-        public override double AnalysePosition(BoardController b, int depth)
-        {
-            double evaluation;
-            int turn = b.GetTurn();
-            List<string> moves = b.GetLegalMoves();
-
-            if (turn == 0)
-            {
-                evaluation = double.MinValue;
-            }
-            else
-            {
-                evaluation = double.MaxValue;
-            }
-
-            if (moves.Count() == 0)
-            {
-                if (b.IsCheck())
-                {
-                    return evaluation;
-                }
-                else
-                {
-                    return 0;
-                }
-            }
-
-            if (depth <= 1)
-            {
-                return EvaluatePosition(b);
-            }
-
-            foreach (string move in moves)
-            {
-                b.Move(move);
-                if (turn == 0)
-                {
-                    evaluation = Math.Max(AnalysePosition(b, depth - 1), evaluation);
-                }
-                else
-                {
-                    evaluation = Math.Min(AnalysePosition(b, depth - 1), evaluation);
-                }
-                b.UndoMove();
-            }
-
-            return evaluation;
-        }
-
-        public override double EvaluatePosition(BoardController b)
-        {
-            double evaluation = 0;
-            evaluation += PieceScore(b) * EvaluationConstants.PIECE_WEIGHT;
-            // evaluation += PositionScore(b) * EvaluationConstants.POSITION_WEIGHT;
-            return evaluation;
-        }
-
-        public override double PieceScore(BoardController b)
+        public double PieceScore(BoardController b)
         {
             ulong whitePieces = b.GetWhitePieces();
             ulong blackPieces = b.GetBlackPieces();
@@ -445,7 +257,12 @@
             return value;
         }
 
-        public override double PositionScore(BoardController b)
+        public double PositionScore()
+        {
+            return PositionScore(board);
+        }
+
+        public double PositionScore(BoardController b)
         {
             ulong whitePieces = b.GetWhitePieces();
             ulong pawns = b.GetPawns();
@@ -534,6 +351,182 @@
                 kings &= ~king;
             }
             return value;
+        }
+
+        public string Name
+        {
+            get
+            {
+                return _name;
+            }
+        }
+
+        public bool SearchFinished
+        {
+            get
+            {
+                return searchFinished;
+            }
+        }
+
+        public string CurrentBestMove
+        {
+            get
+            {
+                return currentBestMove;
+            }
+        }
+    }
+
+    public class RNGEngine : Engine
+    {
+        public RNGEngine()
+        {
+            _name = "EngineRNG";
+        }
+
+        public override void SearchBestMove(BoardController b, int depth)
+        {
+            List<string> moves = board.GetLegalMoves();
+            int index = random.Next(moves.Count);
+            string move = moves[index];
+            currentBestMove = move;
+            searchFinished = true;
+        }
+    }
+
+    public class Greedy : Engine
+    {
+        public Greedy()
+        {
+            _name = "Greedy";
+        }
+
+        public override void SearchBestMove(BoardController b, int depth)
+        {
+            List<string> captures = board.GetCaptures();
+            if (captures.Count > 0)
+            {
+                currentBestMove = captures[random.Next(captures.Count)];
+            }
+            else
+            {
+                List<string> legalMoves = board.GetLegalMoves();
+                currentBestMove = legalMoves[random.Next(legalMoves.Count())];
+            }
+            searchFinished = true;
+        }
+    }
+
+    public class MiniMax : Engine
+    {
+        public MiniMax()
+        {
+            _name = "MiniMax";
+        }
+
+        public override void SearchBestMove(BoardController b, int depth)
+        {
+            List<string> moves = b.GetLegalMoves();
+
+            List<Thread> threads = new();
+            foreach (string move in moves)
+            {
+                Thread t = new(() => AnalyseMove(b.Copy(), move, depth - 1));
+                t.Start();
+                threads.Add(t);
+            }
+
+            while (threads.Any(x => x.IsAlive)) { }
+            searchFinished = true;
+        }
+
+        public override double AnalyseMove(BoardController b, string move, int depth)
+        {
+            b.Move(move);
+            double evaluation = -AnalysePosition(b, depth);
+            b.UndoMove();
+
+            if (evaluation > bestMoveScore || currentBestMove == "")
+            {
+                bestMoveScore = evaluation;
+                currentBestMove = move;
+            }
+
+            return evaluation;
+        }
+
+        public override double AnalysePosition(BoardController b, int depth)
+        {
+            List<string> moves = b.GetLegalMoves();
+
+            double evaluation = double.MinValue;
+
+            if (moves.Count() == 0)
+            {
+                if (b.IsCheck())
+                {
+                    return evaluation;
+                }
+                else
+                {
+                    return 0;
+                }
+            }
+
+            if (depth == 0)
+            {
+                return EvaluatePosition(b);
+            }
+
+            foreach (string move in moves)
+            {
+                b.Move(move);
+                evaluation = Math.Max(-AnalysePosition(b, depth - 1), evaluation);
+                b.UndoMove();
+            }
+
+            return evaluation;
+        }
+    }
+
+    public class AlphaBeta : Engine
+    {
+        public AlphaBeta()
+        {
+            _name = "AlphaBeta";
+        }
+
+        public override void SearchBestMove(BoardController b, int depth)
+        {
+            List<string> moves = board.GetLegalMoves();
+            foreach (string move in moves)
+            {
+                board.Move(move);
+                double score = -AlphaBetaSearch(double.MinValue, double.MaxValue, depth);
+                board.UndoMove();
+                if (score > bestMoveScore || currentBestMove == "")
+                {
+                    bestMoveScore = score;
+                    currentBestMove = move;
+                }
+            }
+            searchFinished = true;
+        }
+
+        private double AlphaBetaSearch(double alpha, double beta, int depth)
+        {
+            if (depth == 0) { return EvaluatePosition(); }
+            List<string> moves = board.GetLegalMoves();
+            foreach (string move in moves)
+            {
+                board.Move(move);
+                double score = -AlphaBetaSearch(-beta, -alpha, depth - 1);
+                board.UndoMove();
+                if (score >= beta) { return beta; }
+                if (score > alpha) { alpha = score; }
+            }
+            return alpha;
         }
     }
 }
